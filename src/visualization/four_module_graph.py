@@ -1,198 +1,266 @@
-"""四模块交互拓扑图。
+"""四模块交互拓扑图 - 纯 SVG 实现。
 
-使用 streamlit-echarts 或自定义 HTML/JS 实现可交互的四模块拓扑图。
+使用 streamlit.components.v1.html 渲染 SVG 拓扑图，
+通过 st.query_params 实现点击交互。
 """
 from __future__ import annotations
 
 from typing import Any, Optional
 
+import streamlit as st
+import streamlit.components.v1 as components
+
 from src.domain_framework.coupling_graph import CouplingGraph
 
 
-def build_echarts_graph_option(
-    graph: CouplingGraph,
-    module_scores: dict[str, float] | None = None,
-    selected_node: str | None = None,
-    selected_edge: str | None = None,
-    graph_height: int = 720,
-) -> dict[str, Any]:
-    """构建 ECharts graph 图表配置。
+# ── 节点布局定义 ──
+NODE_DEFS = [
+    {"id": "execution_control",        "label": "执行控制模块",              "x": 600, "y": 100, "w": 180, "h": 70, "group": "core"},
+    {"id": "energy_input",             "label": "能量输入模块",              "x": 180, "y": 310, "w": 180, "h": 70, "group": "core"},
+    {"id": "environmental_constraint", "label": "环境约束模块",              "x": 1020, "y": 310, "w": 180, "h": 70, "group": "core"},
+    {"id": "state_maintenance",        "label": "状态维持模块",              "x": 600, "y": 420, "w": 180, "h": 70, "group": "core"},
+    {"id": "diagnosis_layer",          "label": "诊断层",                    "x": 600, "y": 660, "w": 180, "h": 60, "group": "diagnosis"},
+    {"id": "coupling_residual",        "label": "复杂耦合/残差",             "x": 200, "y": 580, "w": 180, "h": 60, "group": "residual"},
+    {"id": "model_residual",           "label": "模型残差",                  "x": 600, "y": 560, "w": 160, "h": 56, "group": "residual"},
+    {"id": "intelligent_model",        "label": "智能补偿模型入口",          "x": 980, "y": 580, "w": 200, "h": 60, "group": "model"},
+]
 
-    selected_node: 当前选中的节点 id（高亮）
-    selected_edge: 当前选中的边 id，格式 "source__target"（高亮）
+# ── 边定义 ──
+EDGE_DEFS = [
+    # 主关系 - 蓝色实线
+    {"id": "execution_control__energy_input",             "src": "execution_control",        "tgt": "energy_input",             "label": "执行→能量",   "type": "main"},
+    {"id": "execution_control__environmental_constraint", "src": "execution_control",        "tgt": "environmental_constraint", "label": "执行→环境",   "type": "main"},
+    {"id": "energy_input__state_maintenance",             "src": "energy_input",             "tgt": "state_maintenance",        "label": "能量→状态",   "type": "main"},
+    {"id": "environmental_constraint__state_maintenance", "src": "environmental_constraint", "tgt": "state_maintenance",        "label": "环境→状态",   "type": "main"},
+    {"id": "state_maintenance__diagnosis_layer",          "src": "state_maintenance",        "tgt": "diagnosis_layer",          "label": "状态→诊断",   "type": "main"},
+    # 反馈 - 弧形
+    {"id": "state_maintenance__execution_control",        "src": "state_maintenance",        "tgt": "execution_control",        "label": "状态→执行(反馈)", "type": "feedback"},
+    # 复杂耦合 - 灰色虚线
+    {"id": "energy_input__coupling_residual",             "src": "energy_input",             "tgt": "coupling_residual",        "label": "", "type": "auxiliary"},
+    {"id": "environmental_constraint__coupling_residual", "src": "environmental_constraint", "tgt": "coupling_residual",        "label": "", "type": "auxiliary"},
+    {"id": "execution_control__coupling_residual",        "src": "execution_control",        "tgt": "coupling_residual",        "label": "", "type": "auxiliary"},
+    {"id": "coupling_residual__intelligent_model",        "src": "coupling_residual",        "tgt": "intelligent_model",        "label": "", "type": "auxiliary"},
+    {"id": "model_residual__intelligent_model",           "src": "model_residual",           "tgt": "intelligent_model",        "label": "", "type": "auxiliary"},
+    {"id": "intelligent_model__diagnosis_layer",          "src": "intelligent_model",        "tgt": "diagnosis_layer",          "label": "", "type": "auxiliary"},
+]
+
+# ── 颜色定义 ──
+GROUP_COLORS = {
+    "core":      {"fill": "#E3F2FD", "stroke": "#1565C0"},
+    "diagnosis": {"fill": "#F3E5F5", "stroke": "#6A1B9A"},
+    "residual":  {"fill": "#FFF3E0", "stroke": "#E65100"},
+    "model":     {"fill": "#E8F5E9", "stroke": "#2E7D32"},
+}
+
+EDGE_COLORS = {
+    "main":      {"stroke": "#2878D8", "width": 2.5},
+    "feedback":  {"stroke": "#FF9800", "width": 2.0},
+    "auxiliary": {"stroke": "#8A96A3", "width": 1.5},
+}
+
+SELECTED_COLOR = "#FF4B4B"
+
+
+def _score_to_fill(score: float | None, group: str) -> str:
+    """根据健康分数返回节点填充色。"""
+    if score is None:
+        return GROUP_COLORS.get(group, GROUP_COLORS["core"])["fill"]
+    if score >= 80:
+        return "#C8E6C9"   # 浅绿
+    elif score >= 60:
+        return "#FFF9C4"   # 浅黄
+    elif score >= 40:
+        return "#FFE0B2"   # 浅橙
+    return "#FFCDD2"       # 浅红
+
+
+def _score_to_stroke(score: float | None, group: str) -> str:
+    """根据健康分数返回节点边框色。"""
+    if score is None:
+        return GROUP_COLORS.get(group, GROUP_COLORS["core"])["stroke"]
+    if score >= 80:
+        return "#2E7D32"
+    elif score >= 60:
+        return "#F9A825"
+    elif score >= 40:
+        return "#EF6C00"
+    return "#C62828"
+
+
+def _node_center(nd: dict) -> tuple[float, float]:
+    return nd["x"], nd["y"]
+
+
+def _build_edge_path(src_nd: dict, tgt_nd: dict, edge_type: str) -> str:
+    """生成边的 SVG path 数据。"""
+    sx, sy = _node_center(src_nd)
+    tx, ty = _node_center(tgt_nd)
+
+    if edge_type == "feedback":
+        # 弧形反馈线
+        mx = (sx + tx) / 2 + 80
+        my = (sy + ty) / 2 - 60
+        return f"M {sx} {sy} Q {mx} {my} {tx} {ty}"
+    else:
+        # 直线或微弯
+        return f"M {sx} {sy} L {tx} {ty}"
+
+
+def _build_arrow_marker(edge_type: str, color: str, marker_id: str) -> str:
+    """生成箭头 marker 定义。"""
+    dash = ' stroke-dasharray="4,2"' if edge_type == "auxiliary" else ""
+    return f'''<marker id="{marker_id}" markerWidth="10" markerHeight="7"
+        refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">
+        <polygon points="0 0, 10 3.5, 0 7" fill="{color}"{dash}/>
+    </marker>'''
+
+
+def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, float] | None = None) -> None:
+    """渲染四模块交互拓扑图（纯 SVG）。
+
+    Args:
+        selected_id: 当前选中的节点或边 id
+        module_scores: 核心四模块的健康分数
     """
     module_scores = module_scores or {}
+    node_map = {nd["id"]: nd for nd in NODE_DEFS}
 
-    # 节点颜色映射
-    def score_color(score: float) -> str:
-        if score >= 80:
-            return "#00C853"
-        elif score >= 60:
-            return "#FFD600"
-        elif score >= 40:
-            return "#FF6D00"
-        return "#D50000"
+    # ── 构建 SVG 元素 ──
 
-    # 解析选中边的 source/target
-    sel_edge_src, sel_edge_tgt = None, None
-    if selected_edge and "__" in selected_edge:
-        parts = selected_edge.split("__")
-        if len(parts) == 2:
-            sel_edge_src, sel_edge_tgt = parts[0], parts[1]
+    # defs: filters + markers
+    defs_parts = [
+        # 选中发光 filter
+        '''<filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="4" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>''',
+    ]
 
-    # 构建节点
-    nodes = []
-    positions = {
-        "execution_control": (300, 150),
-        "energy_input": (600, 100),
-        "environmental_constraint": (150, 400),
-        "state_maintenance": (450, 350),
-        "diagnosis_layer": (750, 350),
-        "coupling_residual": (300, 550),
-        "model_residual": (550, 550),
-        "intelligent_model": (425, 680),
-    }
+    # 箭头 markers
+    for etype, ecolor in [("main", "#2878D8"), ("feedback", "#FF9800"), ("auxiliary", "#8A96A3")]:
+        mid = f"arrow_{etype}"
+        defs_parts.append(_build_arrow_marker(etype, ecolor, mid))
 
-    group_colors = {
-        "core": "#1565C0",
-        "diagnosis": "#6A1B9A",
-        "residual": "#E65100",
-        "model": "#2E7D32",
-    }
+    # 选中边箭头
+    defs_parts.append(_build_arrow_marker("selected", SELECTED_COLOR, "arrow_selected"))
 
-    for node in graph.nodes:
-        nid = node["id"]
-        x, y = positions.get(nid, (400, 400))
+    defs_str = "\n".join(defs_parts)
+
+    # 边
+    edge_parts = []
+    for edge in EDGE_DEFS:
+        src_nd = node_map.get(edge["src"])
+        tgt_nd = node_map.get(edge["tgt"])
+        if not src_nd or not tgt_nd:
+            continue
+
+        ecfg = EDGE_COLORS.get(edge["type"], EDGE_COLORS["main"])
+        is_sel = edge["id"] == selected_id
+        color = SELECTED_COLOR if is_sel else ecfg["stroke"]
+        width = ecfg["width"] + 2 if is_sel else ecfg["width"]
+        dash = 'stroke-dasharray="8,4"' if edge["type"] == "auxiliary" and not is_sel else ""
+        opacity = "0.9"
+        path_d = _build_edge_path(src_nd, tgt_nd, edge["type"])
+
+        # 调整 marker：选中时用选中箭头，否则用类型箭头
+        if is_sel:
+            marker = "url(#arrow_selected)"
+        else:
+            marker = f"url(#arrow_{edge['type']})"
+
+        # 边标签
+        label_html = ""
+        if edge["label"]:
+            mx = (src_nd["x"] + tgt_nd["x"]) / 2
+            my = (src_nd["y"] + tgt_nd["y"]) / 2
+            # 偏移避免与线重叠
+            if edge["type"] == "feedback":
+                mx += 50
+                my -= 30
+            else:
+                mx += 15
+                my -= 10
+            label_html = f'<text x="{mx}" y="{my}" font-size="11" fill="{color}" text-anchor="middle" font-weight="{"bold" if is_sel else "normal"}">{edge["label"]}</text>'
+
+        glow = ' filter="url(#glow)"' if is_sel else ""
+        edge_parts.append(
+            f'<a href="?sel_type=edge&sel_id={edge["id"]}" target="_self">'
+            f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{width}" '
+            f'{dash} opacity="{opacity}" marker-end="{marker}"{glow}/>'
+            f'{label_html}</a>'
+        )
+
+    edges_str = "\n".join(edge_parts)
+
+    # 节点
+    node_parts = []
+    for nd in NODE_DEFS:
+        nid = nd["id"]
+        is_sel = nid == selected_id
+
+        # 确定类型
+        if nid == "coupling_residual":
+            sel_type = "coupling"
+        elif nid == "model_residual":
+            sel_type = "residual"
+        elif nid == "intelligent_model":
+            sel_type = "intelligent_model"
+        else:
+            sel_type = "node"
+
         score = module_scores.get(nid)
-        is_selected = nid == selected_node
+        fill = _score_to_fill(score, nd["group"])
+        stroke = SELECTED_COLOR if is_sel else _score_to_stroke(score, nd["group"])
+        stroke_w = 4 if is_sel else 2
+        font_w = "bold" if is_sel else "600"
+        glow = ' filter="url(#glow)"' if is_sel else ""
 
-        item_style = {
-            "color": score_color(score) if score is not None else group_colors.get(node.get("group", ""), "#666"),
-            "borderColor": "#FFD600" if is_selected else "#333",
-            "borderWidth": 4 if is_selected else 2,
-            "shadowBlur": 20 if is_selected else 5,
-            "shadowColor": "rgba(255,214,0,0.6)" if is_selected else "rgba(0,0,0,0.3)",
-        }
+        x = nd["x"] - nd["w"] / 2
+        y = nd["y"] - nd["h"] / 2
+        r = 12  # 圆角
 
-        label_text = f"{node['label']}"
+        # 分数文本
+        score_text = ""
         if score is not None:
-            label_text += f"\n{score:.1f}"
+            score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#555" text-anchor="middle" font-weight="500">{score:.1f}</text>'
 
-        nodes.append({
-            "name": nid,
-            "x": x,
-            "y": y,
-            "symbolSize": 70 if node.get("type") == "module" else 50,
-            "itemStyle": item_style,
-            "label": {
-                "show": True,
-                "formatter": label_text,
-                "fontSize": 13,
-                "fontWeight": "bold",
-                "color": "#fff",
-            },
-            "tooltip": {
-                "formatter": f"<b>{node['label']}</b><br/>{node['description']}<br/>"
-                + (f"评分: {score:.1f}" if score is not None else ""),
-            },
-            "category": node.get("group", "core"),
-            "_nodeData": node,
-        })
+        node_parts.append(
+            f'<a href="?sel_type={sel_type}&sel_id={nid}" target="_self">'
+            f'<rect x="{x}" y="{y}" width="{nd["w"]}" height="{nd["h"]}" rx="{r}" ry="{r}" '
+            f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_w}"{glow}/>'
+            f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="14" fill="#222" text-anchor="middle" font-weight="{font_w}">{nd["label"]}</text>'
+            f'{score_text}'
+            f'</a>'
+        )
 
-    # 构建边（支持选中高亮）
-    edges = []
-    for edge in graph.edges:
-        line_style = {
-            "main": {"color": "#42A5F5", "width": 3, "curveness": 0.1},
-            "feedback": {"color": "#FF9800", "width": 2.5, "curveness": 0.2, "type": "dashed"},
-            "auxiliary": {"color": "#78909C", "width": 1.5, "curveness": 0.15, "type": "dotted"},
-        }
-        style = line_style.get(edge.edge_type, line_style["main"])
+    nodes_str = "\n".join(node_parts)
 
-        # 判断边是否被选中
-        is_edge_selected = (sel_edge_src == edge.source and sel_edge_tgt == edge.target)
+    # ── 组装完整 SVG ──
+    svg_html = f"""
+<div style="background:#EEF3F8; border-radius:12px; border:1px solid #D0D9E4; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
+<svg viewBox="0 0 1200 760" width="100%" height="760" preserveAspectRatio="xMidYMid meet"
+     xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
+<defs>
+{defs_str}
+</defs>
+<!-- 背景 -->
+<rect x="0" y="0" width="1200" height="760" rx="8" ry="8" fill="#F6F8FC"/>
 
-        edge_line_style = {
-            "color": "#FFD600" if is_edge_selected else style["color"],
-            "width": 5 if is_edge_selected else style["width"],
-            "curveness": style.get("curveness", 0.1),
-            "type": style.get("type", "solid"),
-            "shadowBlur": 10 if is_edge_selected else 0,
-            "shadowColor": "rgba(255,214,0,0.6)" if is_edge_selected else "transparent",
-        }
+<!-- 标题 -->
+<text x="600" y="36" font-size="18" font-weight="bold" fill="#333" text-anchor="middle">四模块交互拓扑图</text>
+<text x="600" y="56" font-size="12" fill="#888" text-anchor="middle">特种材料制备设备状态监测系统</text>
 
-        edges.append({
-            "source": edge.source,
-            "target": edge.target,
-            "lineStyle": edge_line_style,
-            "label": {
-                "show": True,
-                "formatter": edge.chinese_name,
-                "fontSize": 11 if is_edge_selected else 10,
-                "color": "#FFD600" if is_edge_selected else "#aaa",
-                "fontWeight": "bold" if is_edge_selected else "normal",
-            },
-            "tooltip": {
-                "formatter": (
-                    f"<b>{edge.chinese_name}</b><br/>"
-                    f"{edge.description}<br/>"
-                    f"耦合强度: {edge.coupling_strength:.2f}<br/>"
-                    f"残差水平: {edge.residual_level:.2f}"
-                ),
-            },
-            "_edgeData": {
-                "source": edge.source,
-                "target": edge.target,
-                "label": edge.label,
-                "chinese_name": edge.chinese_name,
-                "edge_type": edge.edge_type,
-                "description": edge.description,
-            },
-        })
+<!-- 边（先画边，后画节点，节点覆盖在边上面） -->
+{edges_str}
 
-    # ECharts 配置
-    option = {
-        "backgroundColor": "#0f2137",
-        "title": {
-            "text": "四模块交互拓扑图",
-            "subtext": "特种材料制备设备状态监测系统",
-            "top": 10,
-            "left": "center",
-            "textStyle": {"color": "#eee", "fontSize": 18},
-            "subtextStyle": {"color": "#aaa", "fontSize": 12},
-        },
-        "tooltip": {
-            "trigger": "item",
-            "backgroundColor": "rgba(10,25,41,0.95)",
-            "borderColor": "#1565C0",
-            "textStyle": {"color": "#eee"},
-        },
-        "animationDuration": 500,
-        "series": [{
-            "type": "graph",
-            "layout": "none",
-            "data": nodes,
-            "links": edges,
-            "roam": False,
-            "draggable": False,
-            "emphasis": {
-                "focus": "adjacency",
-                "lineStyle": {"width": 5},
-                "itemStyle": {"shadowBlur": 15, "shadowColor": "rgba(255,255,255,0.3)"},
-                "label": {"fontSize": 14},
-            },
-            "lineStyle": {"opacity": 0.8},
-            "edgeLabel": {"fontSize": 10},
-            "categories": [
-                {"name": "core", "itemStyle": {"color": "#1565C0"}},
-                {"name": "diagnosis", "itemStyle": {"color": "#6A1B9A"}},
-                {"name": "residual", "itemStyle": {"color": "#E65100"}},
-                {"name": "model", "itemStyle": {"color": "#2E7D32"}},
-            ],
-        }],
-    }
+<!-- 节点 -->
+{nodes_str}
 
-    return option
+</svg>
+</div>
+"""
+
+    components.html(svg_html, height=820, scrolling=False)
 
 
 def get_module_detail(node_id: str, module_scores: dict[str, float] | None = None) -> dict[str, Any]:
@@ -215,7 +283,6 @@ def get_module_detail(node_id: str, module_scores: dict[str, float] | None = Non
             "variables": meta.variables,
         }
     except (ValueError, KeyError):
-        # 非核心节点
         node_info = {
             "diagnosis_layer": {
                 "name": "诊断层",

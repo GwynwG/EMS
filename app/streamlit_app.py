@@ -13,8 +13,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.visualization.echarts_component import st_echarts_graph
-
 from src.domain_framework.coupling_graph import CouplingGraph
 from src.domain_framework.module_schema import ModuleType, get_module_meta
 from src.domain_framework.module_scoring import ModuleScorer
@@ -24,7 +22,7 @@ from src.online_monitoring.alarm_service import AlarmService
 from src.utils.config_loader import load_app_config, load_alarm_rules
 from src.utils.file_utils import load_csv
 from src.visualization.four_module_graph import (
-    build_echarts_graph_option,
+    render_four_module_graph_svg,
     get_module_detail,
     get_edge_detail,
 )
@@ -48,13 +46,17 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Session State 初始化（单一状态源）──
+# ── Session State 初始化 ──
 if "current_page" not in st.session_state:
     st.session_state.current_page = "首页"
 if "selected_object" not in st.session_state:
     st.session_state.selected_object = {"type": "node", "id": "state_maintenance"}
 if "selected_panel_tab" not in st.session_state:
     st.session_state.selected_panel_tab = "state_maintenance"
+if "selected_module" not in st.session_state:
+    st.session_state.selected_module = "state_maintenance"
+if "selected_relation" not in st.session_state:
+    st.session_state.selected_relation = None
 
 PAGES = ["首页", "执行控制", "能量输入", "环境约束", "状态维持", "数据接入", "特征分析", "模型训练", "在线监测", "预警记录", "健康趋势"]
 
@@ -70,50 +72,45 @@ PANEL_BUTTONS = [
     {"id": "intelligent_model", "label": "智能模型", "type": "intelligent_model"},
 ]
 
-
-# ── 状态更新辅助函数 ──
-def select_node(node_id: str) -> None:
-    """选中一个节点，统一更新 selected_object / selected_panel_tab。"""
-    if node_id == "coupling_residual":
-        st.session_state.selected_object = {"type": "coupling", "id": node_id}
-    elif node_id == "model_residual":
-        st.session_state.selected_object = {"type": "residual", "id": node_id}
-    elif node_id == "intelligent_model":
-        st.session_state.selected_object = {"type": "intelligent_model", "id": node_id}
-    else:
-        st.session_state.selected_object = {"type": "node", "id": node_id}
-    st.session_state.selected_panel_tab = node_id
+MODULE_IDS = {"execution_control", "energy_input", "environmental_constraint", "state_maintenance"}
 
 
-def select_coupling(coupling_id: str) -> None:
-    """选中耦合残差对象。"""
-    st.session_state.selected_object = {"type": "coupling", "id": coupling_id}
-    st.session_state.selected_panel_tab = coupling_id
+# ── 统一状态管理 ──
+def update_selected_object(sel_type: str, sel_id: str) -> None:
+    """统一更新选中对象状态。"""
+    st.session_state.selected_object = {"type": sel_type, "id": sel_id}
 
-
-def select_residual(residual_id: str) -> None:
-    """选中模型残差。"""
-    st.session_state.selected_object = {"type": "residual", "id": residual_id}
-    st.session_state.selected_panel_tab = residual_id
-
-
-def select_intelligent_model() -> None:
-    """选中智能补偿模型。"""
-    st.session_state.selected_object = {"type": "intelligent_model", "id": "intelligent_model"}
-    st.session_state.selected_panel_tab = "intelligent_model"
-
-
-def select_edge(edge_id: str, source: str, target: str) -> None:
-    """选中一条边。"""
-    st.session_state.selected_object = {"type": "edge", "id": edge_id, "source": source, "target": target}
-    if source == "coupling_residual" or target == "coupling_residual":
+    if sel_id in MODULE_IDS:
+        st.session_state.selected_module = sel_id
+        st.session_state.selected_panel_tab = sel_id
+        st.session_state.selected_relation = None
+    elif sel_id == "diagnosis_layer":
+        st.session_state.selected_panel_tab = "diagnosis_layer"
+        st.session_state.selected_relation = None
+    elif sel_id == "coupling_residual":
         st.session_state.selected_panel_tab = "coupling_residual"
-    elif source == "model_residual" or target == "model_residual":
+        st.session_state.selected_relation = "coupling_residual"
+    elif sel_id == "model_residual":
         st.session_state.selected_panel_tab = "model_residual"
-    elif source == "intelligent_model" or target == "intelligent_model":
+        st.session_state.selected_relation = "model_residual"
+    elif sel_id == "intelligent_model":
         st.session_state.selected_panel_tab = "intelligent_model"
-    else:
-        st.session_state.selected_panel_tab = "coupling_residual"
+        st.session_state.selected_relation = "intelligent_model"
+    elif sel_type == "edge":
+        st.session_state.selected_relation = sel_id
+        if "coupling" in sel_id or "residual" in sel_id:
+            st.session_state.selected_panel_tab = "coupling_residual"
+        elif "intelligent" in sel_id:
+            st.session_state.selected_panel_tab = "intelligent_model"
+
+
+def sync_selection_from_query_params() -> None:
+    """从 URL query_params 同步选中状态到 session_state。"""
+    params = st.query_params
+    sel_type = params.get("sel_type")
+    sel_id = params.get("sel_id")
+    if sel_type and sel_id:
+        update_selected_object(sel_type, sel_id)
 
 
 # ── 加载数据 ──
@@ -192,7 +189,6 @@ def render_node_detail(node_id: str, status: dict, graph: CouplingGraph) -> None
     if "risk_level" in detail:
         st.markdown(render_risk_badge(detail["risk_level"]), unsafe_allow_html=True)
 
-    # 核心模块配置入口
     module_pages = {
         "execution_control": "执行控制",
         "energy_input": "能量输入",
@@ -288,19 +284,18 @@ with st.sidebar:
 # 首页 - 四模块监测驾驶舱
 # ════════════════════════════════════════════════════════════
 def render_home_page() -> None:
+    # 从 query_params 同步选中状态
+    sync_selection_from_query_params()
+
     status = get_current_status()
 
     st.markdown("# ⚙ 特种材料制备设备状态监测与智能预警系统")
 
-    # ── 顶部 KPI 卡片（统一使用 render_kpi_card）──
-    # 风险等级
+    # ── 顶部 KPI 卡片 ──
     risk_status = status["risk_level"]
-    # 健康指数状态
     hi = status["health_index"]
     hi_status = "normal" if hi > 80 else ("attention" if hi > 60 else ("warning" if hi > 40 else "severe"))
-    # 主异常模块中文名
     abnormal_module_cn = MODULE_ID_TO_CHINESE.get(status["main_abnormal_module"], status["main_abnormal_module"])
-    # 主耦合异常中文短文本
     abnormal_coupling_cn = format_coupling_text(status["main_abnormal_coupling"])
 
     col1, col2, col3, col4, col5, col6 = st.columns(6)
@@ -322,55 +317,16 @@ def render_home_page() -> None:
 
     st.markdown("---")
 
-    # ── 中部：四模块交互拓扑图 ──
+    # ── 中部：四模块交互拓扑图（纯 SVG）──
     st.markdown("### 四模块交互拓扑图")
-
-    # 构建图表配置
     graph = CouplingGraph()
-    cfg = load_app_config()
-    graph_height = cfg.get("streamlit", {}).get("graph_height", 720)
 
-    # 从 selected_object 中提取选中节点/边
     sel_obj = st.session_state.selected_object
-    obj_type = sel_obj.get("type", "node")
-    if obj_type == "edge":
-        sel_node_id = sel_obj.get("source")  # 选中边时同时高亮起点
-        sel_edge_id = sel_obj.get("id")
-    else:
-        sel_node_id = sel_obj.get("id")
-        sel_edge_id = None
+    selected_id = sel_obj.get("id", "state_maintenance")
 
-    option = build_echarts_graph_option(
-        graph=graph,
-        module_scores=status["module_scores"],
-        selected_node=sel_node_id,
-        selected_edge=sel_edge_id,
-        graph_height=graph_height,
-    )
+    render_four_module_graph_svg(selected_id, status["module_scores"])
 
-    # 渲染 ECharts 图表（bi-directional component，支持点击回调）
-    click_result = st_echarts_graph(option, height=graph_height, key="topology_chart")
-
-    # 处理图点击回调和错误
-    if isinstance(click_result, dict):
-        action = click_result.get("action")
-        if action == "error":
-            st.error(f"拓扑图渲染失败: {click_result.get('message', '未知错误')}")
-        elif action == "node_click":
-            node_id = click_result.get("nodeId", "")
-            all_node_ids = [n["id"] for n in graph.nodes]
-            if node_id in all_node_ids:
-                select_node(node_id)
-                st.rerun()
-        elif action == "edge_click":
-            edge_id = click_result.get("edgeId", "")
-            source = click_result.get("source", "")
-            target = click_result.get("target", "")
-            if edge_id:
-                select_edge(edge_id, source, target)
-                st.rerun()
-
-    # ── 图下方按钮组（与 selected_panel_tab 联动）──
+    # ── 图下方按钮组 ──
     st.markdown("**点击节点查看详情:**")
     btn_cols = st.columns(4)
     current_tab = st.session_state.selected_panel_tab
@@ -382,15 +338,7 @@ def render_home_page() -> None:
             is_selected = (btn_id == current_tab)
             btn_type = "primary" if is_selected else "secondary"
             if st.button(btn_label, key=f"panel_btn_{btn_id}", type=btn_type, width="stretch"):
-                obj_type = btn_cfg["type"]
-                if obj_type == "node":
-                    select_node(btn_id)
-                elif obj_type == "coupling":
-                    select_coupling(btn_id)
-                elif obj_type == "residual":
-                    select_residual(btn_id)
-                elif obj_type == "intelligent_model":
-                    select_intelligent_model()
+                update_selected_object(btn_cfg["type"], btn_id)
                 st.rerun()
 
     st.markdown("---")
@@ -451,7 +399,6 @@ def render_module_page(module_type: ModuleType) -> None:
     st.markdown(f"# {meta.chinese_name}")
     st.markdown(f"*{meta.description}*")
 
-    # 模块评分
     col1, col2, col3 = st.columns(3)
     with col1:
         render_kpi_card("模块评分", f"{score:.1f}", status="normal" if score > 80 else ("attention" if score > 60 else "warning"))
@@ -464,7 +411,6 @@ def render_module_page(module_type: ModuleType) -> None:
 
     st.markdown("---")
 
-    # 变量列表
     st.markdown("### 模块变量")
     from src.utils.config_loader import get_variable_by_module
     var_list = get_variable_by_module(module_type.value)
@@ -472,7 +418,6 @@ def render_module_page(module_type: ModuleType) -> None:
         var_df = pd.DataFrame(var_list)
         st.dataframe(var_df[["standard_name", "chinese_name", "unit", "raw_tag", "data_type", "sampling_rate"]], width="stretch")
 
-    # 模块特征数据
     st.markdown("### 模块特征数据")
     df = load_fused_features()
     if not df.empty:
@@ -483,7 +428,6 @@ def render_module_page(module_type: ModuleType) -> None:
         else:
             st.info("该模块暂无特征数据")
 
-    # 模块配置
     st.markdown("### 模块配置")
     st.markdown(f"- 模块类型: {module_type.value}")
     st.markdown(f"- 变量数量: {len(meta.variables)}")
@@ -609,7 +553,6 @@ def render_online_page() -> None:
 
     st.markdown("---")
 
-    # 模块评分
     st.markdown("### 四模块状态评分")
     module_names = {
         "execution_control": "执行控制",
