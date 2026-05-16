@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+#chart { width: 100%; height: 100%; min-height: 500px; }
+#error { color: #ff6b6b; padding: 20px; font-family: sans-serif; display: none; }
+</style>
+</head>
+<body>
+<div id="error"></div>
+<div id="chart"></div>
+<script>
+function showError(msg) {
+    var errorDom = document.getElementById('error');
+    errorDom.style.display = 'block';
+    errorDom.textContent = '图表加载失败: ' + msg;
+    console.error('[ECharts Component]', msg);
+    try {
+        Streamlit.setComponentValue({ action: 'error', message: msg });
+    } catch(e) {}
+}
+
+function loadScript(src, callback) {
+    var script = document.createElement('script');
+    script.src = src;
+    script.onload = callback;
+    script.onerror = function() {
+        callback(new Error('Failed to load: ' + src));
+    };
+    document.head.appendChild(script);
+}
+
+function initChart() {
+    if (typeof echarts === 'undefined') {
+        showError('echarts 未加载');
+        try { Streamlit.setComponentReady(); } catch(e) {}
+        return;
+    }
+
+    var chartDom = document.getElementById('chart');
+    var chart = null;
+
+    function onRender(event) {
+        try {
+            var args = (event.detail && event.detail.args) || {};
+            var optionStr = args.option;
+            if (!optionStr) return;
+            var option = JSON.parse(optionStr);
+
+            if (!chart) {
+                // Ensure container has dimensions before init
+                if (chartDom.offsetWidth === 0 || chartDom.offsetHeight === 0) {
+                    chartDom.style.minHeight = '500px';
+                }
+                chart = echarts.init(chartDom, null, { renderer: 'canvas' });
+                chart.on('click', function(params) {
+                    if (params.dataType === 'node') {
+                        Streamlit.setComponentValue({
+                            action: 'node_click',
+                            nodeId: params.name || (params.data && params.data.name) || ''
+                        });
+                    } else if (params.dataType === 'edge') {
+                        var src = (params.data && params.data.source) || '';
+                        var tgt = (params.data && params.data.target) || '';
+                        Streamlit.setComponentValue({
+                            action: 'edge_click',
+                            edgeId: src + '__' + tgt,
+                            source: src,
+                            target: tgt
+                        });
+                    }
+                });
+            }
+            chart.setOption(option, { notMerge: true });
+            // Resize after a frame to ensure correct dimensions
+            requestAnimationFrame(function() {
+                if (chart) {
+                    try { chart.resize(); } catch(e) {}
+                }
+            });
+        } catch (e) {
+            showError(e.message);
+        }
+    }
+
+    window.addEventListener("resize", function() {
+        if (chart) {
+            try { chart.resize(); } catch(e) {}
+        }
+    });
+
+    Streamlit.events.addEventListener(Streamlit.EVENT_RENDER, onRender);
+    Streamlit.setComponentReady();
+}
+
+// Try local echarts first, fallback to CDN
+loadScript('./echarts.min.js', function(err) {
+    if (err) {
+        console.warn('[ECharts Component] Local load failed, trying CDN...');
+        loadScript('https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js', function(err2) {
+            if (err2) {
+                showError('echarts.min.js 加载失败（本地和 CDN 均失败）');
+                try { Streamlit.setComponentReady(); } catch(e) {}
+                return;
+            }
+            initChart();
+        });
+    } else {
+        initChart();
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+alarm_levels:
+  normal:
+    label: "正常"
+    color: "#00C853"
+    score_range: [0, 30]
+  attention:
+    label: "关注"
+    color: "#FFD600"
+    score_range: [30, 50]
+  warning:
+    label: "预警"
+    color: "#FF6D00"
+    score_range: [50, 70]
+  severe:
+    label: "严重"
+    color: "#D50000"
+    score_range: [70, 100]
+
+alarm_rules:
+  - name: "furnace_temp_high"
+    module: "state_maintenance"
+    condition: "furnace_temp_1 > 1200"
+    level: "warning"
+    message: "炉温1区超温"
+
+  - name: "furnace_temp_critical"
+    module: "state_maintenance"
+    condition: "furnace_temp_1 > 1300"
+    level: "severe"
+    message: "炉温1区严重超温"
+
+  - name: "cooling_water_low"
+    module: "environmental_constraint"
+    condition: "cooling_water_flow < 5"
+    level: "warning"
+    message: "冷却水流量过低"
+
+  - name: "vibration_high"
+    module: "state_maintenance"
+    condition: "vibration_x > 10 OR vibration_y > 10"
+    level: "warning"
+    message: "振动超标"
+
+  - name: "power_anomaly"
+    module: "energy_input"
+    condition: "supply_voltage < 350 OR supply_voltage > 440"
+    level: "attention"
+    message: "供电电压异常"
+
+  - name: "interlock_triggered"
+    module: "execution_control"
+    condition: "interlock_status == 1"
+    level: "severe"
+    message: "联锁触发"
+
+  - name: "vacuum_loss"
+    module: "environmental_constraint"
+    condition: "vacuum_pressure > 1000"
+    level: "warning"
+    message: "真空度异常升高"

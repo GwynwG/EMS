@@ -1,0 +1,49 @@
+pca:
+  n_components: 0.95
+  whiten: false
+  anomaly_threshold_percentile: 99
+
+pls:
+  n_components: 5
+  scale: true
+  enabled: false
+
+isolation_forest:
+  n_estimators: 200
+  contamination: 0.05
+  max_samples: "auto"
+  random_state: 42
+
+xgboost:
+  n_estimators: 100
+  max_depth: 6
+  learning_rate: 0.1
+  random_state: 42
+  enabled: false
+
+autoencoder:
+  encoding_dim: 16
+  epochs: 50
+  batch_size: 32
+  threshold_percentile: 99
+  enabled: false
+
+health_index:
+  weights:
+    pca_score: 0.25
+    isolation_forest_score: 0.25
+    module_scores: 0.35
+    event_penalty: 0.15
+  decay_factor: 0.95
+
+risk_fusion:
+  module_weights:
+    execution_control: 0.15
+    energy_input: 0.20
+    environmental_constraint: 0.20
+    state_maintenance: 0.45
+  risk_thresholds:
+    normal: 30
+    attention: 50
+    warning: 70
+    severe: 85

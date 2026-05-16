@@ -1,0 +1,40 @@
+============================================================
+数据质量报告
+============================================================
+数据规模: 5000 行 × 29 列
+时间范围: 非时间索引
+重复行数: 0
+
+缺失值统计:
+
+数值列统计:
+  setpoint_temperature: mean=800.0280, std=4.9824, min=783.7937, max=819.6312
+  setpoint_pressure: mean=0.4998, std=0.0202, min=0.4216, max=0.5706
+  control_mode: mean=1.0486, std=0.3887, min=0.0000, max=2.0000
+  valve_position_main: mean=50.0876, std=5.0208, min=31.8240, max=72.3954
+  valve_position_cooling: mean=39.9728, std=2.9836, min=28.4309, max=50.8341
+  interlock_status: mean=0.0010, std=0.0316, min=0.0000, max=1.0000
+  actuator_feedback: mean=49.9731, std=2.9564, min=39.5149, max=61.0749
+  supply_voltage: mean=379.9951, std=5.1069, min=357.6720, max=398.6392
+  supply_current: mean=99.7479, std=9.8914, min=67.4797, max=133.3527
+  active_power: mean=37.9144, std=3.8098, min=25.6400, max=50.4842
+  reactive_power: mean=11.3728, std=1.1592, min=7.5966, max=15.2030
+  power_factor: mean=0.8502, std=0.0300, min=0.7474, max=0.9624
+  energy_efficiency: mean=84.9876, std=3.0423, min=74.7412, max=95.4146
+  power_frequency: mean=50.0026, std=0.1010, min=49.5842, max=50.3495
+  cooling_water_flow: mean=14.0123, std=2.5653, min=2.5758, max=18.4462
+  cooling_water_temp_in: mean=24.9926, std=0.9973, min=21.1830, max=28.7602
+  cooling_water_temp_out: mean=32.9894, std=1.1310, min=29.0569, max=37.4355
+  cooling_water_pressure: mean=0.3002, std=0.0201, min=0.2315, max=0.3688
+  vacuum_pressure: mean=100.0315, std=9.9647, min=66.3955, max=138.2978
+  ambient_pressure: mean=101.3055, std=0.4986, min=99.4560, max=103.1564
+  ambient_humidity: mean=59.9330, std=4.9904, min=41.4742, max=78.8309
+  furnace_temp_1: mean=849.8833, std=119.3946, min=763.7279, max=1320.9273
+  furnace_temp_2: mean=800.1996, std=7.8938, min=772.9776, max=833.6162
+  furnace_temp_3: mean=800.1324, std=11.8780, min=754.6086, max=839.1309
+  furnace_pressure: mean=0.5000, std=0.0305, min=0.3890, max=0.6130
+  vibration_x: mean=3.9879, std=4.7774, min=0.0003, max=22.6879
+  vibration_y: mean=1.8040, std=0.4007, min=0.3872, max=3.1145
+  temp_stability_index: mean=89.9924, std=4.9793, min=72.1820, max=108.0873
+  degradation_index: mean=20.4486, std=23.9332, min=9.8136, max=110.7375
+============================================================

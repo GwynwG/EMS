@@ -1,0 +1,16 @@
+{
+  "report_time": "2026-05-09T16:24:32.912981",
+  "risk_assessment": {
+    "risk_score": 44.06,
+    "risk_level": "normal",
+    "health_index": 30.265901703942617,
+    "main_abnormal_module": "energy_input",
+    "main_abnormal_coupling": "energy_input ↔ state_maintenance",
+    "module_scores": {
+      "execution_control": 49.24312871836831,
+      "energy_input": 34.40923022964992,
+      "environmental_constraint": 53.84215714244399,
+      "state_maintenance": 36.97293195459632
+    }
+  }
+}

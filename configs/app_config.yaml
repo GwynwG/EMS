@@ -1,0 +1,28 @@
+app:
+  name: "特种材料制备设备状态监测与智能预警原型系统"
+  version: "1.0.0"
+  debug: true
+
+data:
+  raw_excel_dir: "data/raw_excel"
+  raw_dcs_dir: "data/raw_dcs"
+  processed_dir: "data/processed"
+  samples_dir: "data/samples"
+  demo_dir: "data/demo"
+
+output:
+  figures_dir: "outputs/figures"
+  reports_dir: "outputs/reports"
+  models_dir: "outputs/models"
+  logs_dir: "outputs/logs"
+
+dcs:
+  connector_type: "mock"
+  mock_data_source: "data/processed/cleaned_data.csv"
+  poll_interval_sec: 2.0
+  buffer_size: 500
+
+streamlit:
+  port: 8501
+  theme: "dark"
+  graph_height: 720

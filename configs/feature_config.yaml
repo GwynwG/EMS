@@ -1,0 +1,97 @@
+window:
+  length: 60
+  step: 10
+
+features:
+  execution_control:
+    raw_features:
+      - "setpoint_temperature"
+      - "setpoint_pressure"
+      - "control_mode"
+      - "valve_position_main"
+      - "valve_position_cooling"
+      - "interlock_status"
+      - "actuator_feedback"
+    derived:
+      - "mean"
+      - "std"
+      - "max"
+      - "min"
+      - "range"
+      - "slope"
+      - "change_rate"
+      - "lag_1"
+      - "lag_5"
+      - "rolling_mean_10"
+      - "rolling_std_10"
+      - "event_count_interlock"
+
+  energy_input:
+    raw_features:
+      - "supply_voltage"
+      - "supply_current"
+      - "active_power"
+      - "reactive_power"
+      - "power_factor"
+      - "energy_efficiency"
+      - "power_frequency"
+    derived:
+      - "mean"
+      - "std"
+      - "max"
+      - "min"
+      - "range"
+      - "slope"
+      - "change_rate"
+      - "lag_1"
+      - "lag_5"
+      - "rolling_mean_10"
+      - "rolling_std_10"
+      - "event_count_power_drop"
+
+  environmental_constraint:
+    raw_features:
+      - "cooling_water_flow"
+      - "cooling_water_temp_in"
+      - "cooling_water_temp_out"
+      - "cooling_water_pressure"
+      - "vacuum_pressure"
+      - "ambient_pressure"
+      - "ambient_humidity"
+    derived:
+      - "mean"
+      - "std"
+      - "max"
+      - "min"
+      - "range"
+      - "slope"
+      - "change_rate"
+      - "lag_1"
+      - "lag_5"
+      - "rolling_mean_10"
+      - "rolling_std_10"
+      - "temp_diff_cooling"
+
+  state_maintenance:
+    raw_features:
+      - "furnace_temp_1"
+      - "furnace_temp_2"
+      - "furnace_temp_3"
+      - "furnace_pressure"
+      - "vibration_x"
+      - "vibration_y"
+      - "temp_stability_index"
+      - "degradation_index"
+    derived:
+      - "mean"
+      - "std"
+      - "max"
+      - "min"
+      - "range"
+      - "slope"
+      - "change_rate"
+      - "lag_1"
+      - "lag_5"
+      - "rolling_mean_10"
+      - "rolling_std_10"
+      - "temp_uniformity"
