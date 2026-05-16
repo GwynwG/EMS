@@ -184,7 +184,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
         glow = ' filter="url(#glow)"' if is_sel else ""
         edge_parts.append(
-            f'<a href="?sel_type=edge&sel_id={edge["id"]}" target="_self">'
+            f'<a href="?sel_type=edge&sel_id={edge["id"]}" target="_top">'
             f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{width}" '
             f'{dash} opacity="{opacity}" marker-end="{marker}"{glow}/>'
             f'{label_html}</a>'
@@ -225,7 +225,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
             score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#555" text-anchor="middle" font-weight="500">{score:.1f}</text>'
 
         node_parts.append(
-            f'<a href="?sel_type={sel_type}&sel_id={nid}" target="_self">'
+            f'<a href="?sel_type={sel_type}&sel_id={nid}" target="_top">'
             f'<rect x="{x}" y="{y}" width="{nd["w"]}" height="{nd["h"]}" rx="{r}" ry="{r}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_w}"{glow}/>'
             f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="14" fill="#222" text-anchor="middle" font-weight="{font_w}">{nd["label"]}</text>'

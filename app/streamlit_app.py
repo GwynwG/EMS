@@ -109,8 +109,12 @@ def sync_selection_from_query_params() -> None:
     params = st.query_params
     sel_type = params.get("sel_type")
     sel_id = params.get("sel_id")
-    if sel_type and sel_id:
-        update_selected_object(sel_type, sel_id)
+    if not sel_type or not sel_id:
+        return
+    current = st.session_state.get("selected_object", {})
+    if current.get("type") == sel_type and current.get("id") == sel_id:
+        return
+    update_selected_object(sel_type, sel_id)
 
 
 # ── 加载数据 ──
