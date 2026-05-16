@@ -129,19 +129,16 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
     # defs: filters + markers
     defs_parts = [
-        # 选中发光 filter
         '''<filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="4" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>''',
     ]
 
-    # 箭头 markers
     for etype, ecolor in [("main", "#2878D8"), ("feedback", "#FF9800"), ("auxiliary", "#8A96A3")]:
         mid = f"arrow_{etype}"
         defs_parts.append(_build_arrow_marker(etype, ecolor, mid))
 
-    # 选中边箭头
     defs_parts.append(_build_arrow_marker("selected", SELECTED_COLOR, "arrow_selected"))
 
     defs_str = "\n".join(defs_parts)
@@ -159,21 +156,17 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         color = SELECTED_COLOR if is_sel else ecfg["stroke"]
         width = ecfg["width"] + 2 if is_sel else ecfg["width"]
         dash = 'stroke-dasharray="8,4"' if edge["type"] == "auxiliary" and not is_sel else ""
-        opacity = "0.9"
         path_d = _build_edge_path(src_nd, tgt_nd, edge["type"])
 
-        # 调整 marker：选中时用选中箭头，否则用类型箭头
         if is_sel:
             marker = "url(#arrow_selected)"
         else:
             marker = f"url(#arrow_{edge['type']})"
 
-        # 边标签
         label_html = ""
         if edge["label"]:
             mx = (src_nd["x"] + tgt_nd["x"]) / 2
             my = (src_nd["y"] + tgt_nd["y"]) / 2
-            # 偏移避免与线重叠
             if edge["type"] == "feedback":
                 mx += 50
                 my -= 30
@@ -184,10 +177,10 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
         glow = ' filter="url(#glow)"' if is_sel else ""
         edge_parts.append(
-            f'<a href="?sel_type=edge&sel_id={edge["id"]}" target="_top">'
+            f'<g onclick="selectObj(\'edge\',\'{edge["id"]}\')" style="cursor:pointer;">'
             f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{width}" '
-            f'{dash} opacity="{opacity}" marker-end="{marker}"{glow}/>'
-            f'{label_html}</a>'
+            f'{dash} opacity="0.9" marker-end="{marker}"{glow}/>'
+            f'{label_html}</g>'
         )
 
     edges_str = "\n".join(edge_parts)
@@ -198,7 +191,6 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         nid = nd["id"]
         is_sel = nid == selected_id
 
-        # 确定类型
         if nid == "coupling_residual":
             sel_type = "coupling"
         elif nid == "model_residual":
@@ -217,45 +209,45 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
         x = nd["x"] - nd["w"] / 2
         y = nd["y"] - nd["h"] / 2
-        r = 12  # 圆角
+        r = 12
 
-        # 分数文本
         score_text = ""
         if score is not None:
             score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#555" text-anchor="middle" font-weight="500">{score:.1f}</text>'
 
         node_parts.append(
-            f'<a href="?sel_type={sel_type}&sel_id={nid}" target="_top">'
+            f'<g onclick="selectObj(\'{sel_type}\',\'{nid}\')" style="cursor:pointer;">'
             f'<rect x="{x}" y="{y}" width="{nd["w"]}" height="{nd["h"]}" rx="{r}" ry="{r}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_w}"{glow}/>'
             f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="14" fill="#222" text-anchor="middle" font-weight="{font_w}">{nd["label"]}</text>'
             f'{score_text}'
-            f'</a>'
+            f'</g>'
         )
 
     nodes_str = "\n".join(node_parts)
 
-    # ── 组装完整 SVG ──
+    # ── 组装完整 HTML ──
     svg_html = f"""
 <div style="background:#EEF3F8; border-radius:12px; border:1px solid #D0D9E4; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
+<script>
+function selectObj(selType, selId) {{
+    var url = new URL(window.top.location.href);
+    url.searchParams.set('sel_type', selType);
+    url.searchParams.set('sel_id', selId);
+    url.hash = 'four_module_graph';
+    window.top.location.href = url.toString();
+}}
+</script>
 <svg viewBox="0 0 1200 760" width="100%" height="760" preserveAspectRatio="xMidYMid meet"
      xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
 <defs>
 {defs_str}
 </defs>
-<!-- 背景 -->
 <rect x="0" y="0" width="1200" height="760" rx="8" ry="8" fill="#F6F8FC"/>
-
-<!-- 标题 -->
 <text x="600" y="36" font-size="18" font-weight="bold" fill="#333" text-anchor="middle">四模块交互拓扑图</text>
 <text x="600" y="56" font-size="12" fill="#888" text-anchor="middle">特种材料制备设备状态监测系统</text>
-
-<!-- 边（先画边，后画节点，节点覆盖在边上面） -->
 {edges_str}
-
-<!-- 节点 -->
 {nodes_str}
-
 </svg>
 </div>
 """
