@@ -1,7 +1,7 @@
-"""四模块交互拓扑图 - 纯 SVG 实现。
+"""四模块交互拓扑图 - 纯 SVG 静态示意图。
 
 使用 streamlit.components.v1.html 渲染 SVG 拓扑图，
-通过 st.query_params 实现点击交互。
+根据 selected_id 高亮对应节点/边，无任何点击交互。
 """
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ EDGE_COLORS = {
     "auxiliary": {"stroke": "#8A96A3", "width": 1.5},
 }
 
-SELECTED_COLOR = "#FF4B4B"
+SELECTED_COLOR = "#FFF176"
 
 
 def _score_to_fill(score: float | None, group: str) -> str:
@@ -129,9 +129,11 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
     # defs: filters + markers
     defs_parts = [
-        '''<filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="4" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        '''<filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="8" result="blur"/>
+            <feFlood flood-color="#FFFDE7" flood-opacity="0.85" result="color"/>
+            <feComposite in="color" in2="blur" operator="in" result="colorBlur"/>
+            <feMerge><feMergeNode in="colorBlur"/><feMergeNode in="colorBlur"/><feMergeNode in="colorBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>''',
     ]
 
@@ -177,7 +179,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
         glow = ' filter="url(#glow)"' if is_sel else ""
         edge_parts.append(
-            f'<g onclick="selectObj(\'edge\',\'{edge["id"]}\')" style="cursor:pointer;">'
+            f'<g>'
             f'<path d="{path_d}" fill="none" stroke="{color}" stroke-width="{width}" '
             f'{dash} opacity="0.9" marker-end="{marker}"{glow}/>'
             f'{label_html}</g>'
@@ -191,19 +193,10 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         nid = nd["id"]
         is_sel = nid == selected_id
 
-        if nid == "coupling_residual":
-            sel_type = "coupling"
-        elif nid == "model_residual":
-            sel_type = "residual"
-        elif nid == "intelligent_model":
-            sel_type = "intelligent_model"
-        else:
-            sel_type = "node"
-
         score = module_scores.get(nid)
         fill = _score_to_fill(score, nd["group"])
         stroke = SELECTED_COLOR if is_sel else _score_to_stroke(score, nd["group"])
-        stroke_w = 4 if is_sel else 2
+        stroke_w = 5 if is_sel else 2
         font_w = "bold" if is_sel else "600"
         glow = ' filter="url(#glow)"' if is_sel else ""
 
@@ -216,7 +209,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
             score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#555" text-anchor="middle" font-weight="500">{score:.1f}</text>'
 
         node_parts.append(
-            f'<g onclick="selectObj(\'{sel_type}\',\'{nid}\')" style="cursor:pointer;">'
+            f'<g>'
             f'<rect x="{x}" y="{y}" width="{nd["w"]}" height="{nd["h"]}" rx="{r}" ry="{r}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_w}"{glow}/>'
             f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="14" fill="#222" text-anchor="middle" font-weight="{font_w}">{nd["label"]}</text>'
@@ -228,18 +221,9 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
     # ── 组装完整 HTML ──
     svg_html = f"""
-<div style="background:#EEF3F8; border-radius:12px; border:1px solid #D0D9E4; padding:8px; width:100%; box-sizing:border-box; overflow:hidden;">
-<script>
-function selectObj(selType, selId) {{
-    var url = new URL(window.top.location.href);
-    url.searchParams.set('sel_type', selType);
-    url.searchParams.set('sel_id', selId);
-    url.hash = 'four_module_graph';
-    window.top.location.href = url.toString();
-}}
-</script>
+<div style="background:#EEF3F8; border-radius:12px; border:1px solid #D0D9E4; padding:8px; width:100%; box-sizing:border-box; overflow:hidden; pointer-events:none;">
 <svg viewBox="0 0 1200 760" width="100%" height="760" preserveAspectRatio="xMidYMid meet"
-     xmlns="http://www.w3.org/2000/svg" style="display:block; margin:0 auto;">
+     xmlns="http://www.w3.org/2000/svg" style="pointer-events:none; display:block; margin:0 auto;">
 <defs>
 {defs_str}
 </defs>

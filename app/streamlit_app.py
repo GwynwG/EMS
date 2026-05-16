@@ -104,19 +104,6 @@ def update_selected_object(sel_type: str, sel_id: str) -> None:
             st.session_state.selected_panel_tab = "intelligent_model"
 
 
-def sync_selection_from_query_params() -> None:
-    """从 URL query_params 同步选中状态到 session_state。"""
-    params = st.query_params
-    sel_type = params.get("sel_type")
-    sel_id = params.get("sel_id")
-    if not sel_type or not sel_id:
-        return
-    current = st.session_state.get("selected_object", {})
-    if current.get("type") == sel_type and current.get("id") == sel_id:
-        return
-    update_selected_object(sel_type, sel_id)
-
-
 # ── 加载数据 ──
 @st.cache_data
 def load_model_results() -> pd.DataFrame:
@@ -288,9 +275,6 @@ with st.sidebar:
 # 首页 - 四模块监测驾驶舱
 # ════════════════════════════════════════════════════════════
 def render_home_page() -> None:
-    # 从 query_params 同步选中状态
-    sync_selection_from_query_params()
-
     status = get_current_status()
 
     st.markdown("# ⚙ 特种材料制备设备状态监测与智能预警系统")
@@ -322,7 +306,7 @@ def render_home_page() -> None:
     st.markdown("---")
 
     # ── 中部：四模块交互拓扑图（纯 SVG）──
-    st.markdown("### 四模块交互拓扑图")
+    st.markdown("### 四模块拓扑示意图")
     graph = CouplingGraph()
 
     sel_obj = st.session_state.selected_object
