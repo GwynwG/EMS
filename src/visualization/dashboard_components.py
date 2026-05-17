@@ -28,19 +28,19 @@ MODULE_SHORT_CHINESE: dict[str, str] = {
     "diagnosis_layer": "诊断层",
 }
 
-# ── 风险等级颜色 ──
+# ── 风险等级颜色 (工业深色主题) ──
 STATUS_COLORS: dict[str, str] = {
-    "normal": "#2E7D32",
-    "attention": "#F9A825",
-    "warning": "#EF6C00",
-    "severe": "#C62828",
+    "normal": "#10B981",
+    "attention": "#F59E0B",
+    "warning": "#F97316",
+    "severe": "#EF4444",
 }
 
 STATUS_BG: dict[str, str] = {
-    "normal": "rgba(46,125,50,0.12)",
-    "attention": "rgba(249,168,37,0.12)",
-    "warning": "rgba(239,108,0,0.12)",
-    "severe": "rgba(198,40,40,0.12)",
+    "normal": "rgba(16,185,129,0.10)",
+    "attention": "rgba(245,158,11,0.10)",
+    "warning": "rgba(249,115,22,0.10)",
+    "severe": "rgba(239,68,68,0.10)",
 }
 
 
@@ -60,35 +60,46 @@ def render_kpi_card(
     st.markdown(
         f"""
         <div style="
-            background: {bg};
-            border: 1px solid {color}44;
-            border-left: 4px solid {color};
-            border-radius: 10px;
-            padding: 14px 16px;
+            background: #111827;
+            border: 1px solid #1E2D4A;
+            border-left: 3px solid {color};
+            border-radius: 8px;
+            padding: 16px 18px;
             text-align: center;
             min-height: 120px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+            position: relative;
+            overflow: hidden;
         ">
             <div style="
-                font-size: 12px;
-                color: #9e9e9e;
-                margin-bottom: 6px;
+                position: absolute; top: 0; left: 0; right: 0; height: 1px;
+                background: linear-gradient(90deg, transparent, {color}33, transparent);
+            "></div>
+            <div style="
+                font-size: 11px;
+                color: #64748B;
+                margin-bottom: 8px;
                 word-wrap: break-word;
                 width: 100%;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                font-family: 'Fira Sans', sans-serif;
             ">{label}</div>
             <div style="
-                font-size: 24px;
+                font-size: 28px;
                 font-weight: 700;
                 color: {color};
                 line-height: 1.2;
                 word-wrap: break-word;
                 width: 100%;
+                font-family: 'Fira Code', 'Fira Sans', monospace;
+                text-shadow: 0 0 20px {color}33;
             ">{value}</div>
-            {"<div style='font-size: 11px; color: #78909C; margin-top: 4px; word-wrap: break-word; width: 100%;'>" + subtext + "</div>" if subtext else ""}
+            {"<div style='font-size: 11px; color: #64748B; margin-top: 6px; word-wrap: break-word; width: 100%;'>" + subtext + "</div>" if subtext else ""}
         </div>
         """,
         unsafe_allow_html=True,
@@ -119,21 +130,23 @@ def render_metric_card(
     title: str,
     value: str | float,
     delta: str | None = None,
-    color: str = "#1565C0",
+    color: str = "#22D3EE",
 ) -> None:
     """渲染指标卡片（兼容旧接口）。"""
     st.markdown(
         f"""
-        <div style="background: linear-gradient(135deg, {color}18, {color}08);
-                     border: 1px solid {color}44; border-radius: 12px;
+        <div style="background: #111827;
+                     border: 1px solid #1E2D4A; border-radius: 8px;
                      padding: 16px; text-align: center;
                      min-height: 120px; display: flex; flex-direction: column;
                      justify-content: center;
-                     box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
-            <div style="font-size: 12px; color: #aaa; margin-bottom: 4px;">{title}</div>
-            <div style="font-size: 24px; font-weight: bold; color: {color};
-                        word-wrap: break-word;">{value}</div>
-            {f'<div style="font-size: 11px; color: #888; margin-top: 4px;">{delta}</div>' if delta else ''}
+                     box-shadow: 0 4px 16px rgba(0,0,0,0.3);">
+            <div style="font-size: 11px; color: #64748B; margin-bottom: 6px;
+                        text-transform: uppercase; letter-spacing: 0.08em;">{title}</div>
+            <div style="font-size: 26px; font-weight: 700; color: {color};
+                        word-wrap: break-word; font-family: 'Fira Code', monospace;
+                        text-shadow: 0 0 20px {color}33;">{value}</div>
+            {f'<div style="font-size: 11px; color: #64748B; margin-top: 4px;">{delta}</div>' if delta else ''}
         </div>
         """,
         unsafe_allow_html=True,
@@ -143,39 +156,40 @@ def render_metric_card(
 def render_risk_badge(level: str) -> str:
     """返回风险等级对应的 HTML 徽章。"""
     colors = {
-        "normal": ("#00C853", "正常"),
-        "attention": ("#FFD600", "关注"),
-        "warning": ("#FF6D00", "预警"),
-        "severe": ("#D50000", "严重"),
+        "normal": ("#10B981", "正常"),
+        "attention": ("#F59E0B", "关注"),
+        "warning": ("#F97316", "预警"),
+        "severe": ("#EF4444", "严重"),
     }
-    color, label = colors.get(level, ("#666", level))
+    color, label = colors.get(level, ("#64748B", level))
     return (
-        f'<span style="background:{color}; color:#fff; padding:4px 12px; '
-        f'border-radius:16px; font-size:13px; font-weight:bold;">{label}</span>'
+        f'<span style="background:{color}1A; color:{color}; padding:4px 14px; '
+        f'border-radius:4px; font-size:12px; font-weight:600; border:1px solid {color}44;'
+        f'letter-spacing:0.05em; text-transform:uppercase;">{label}</span>'
     )
 
 
 def render_module_score_bar(module_name: str, score: float, chinese_name: str) -> None:
     """渲染模块评分条。"""
     if score >= 80:
-        color = "#00C853"
+        color = "#10B981"
     elif score >= 60:
-        color = "#FFD600"
+        color = "#F59E0B"
     elif score >= 40:
-        color = "#FF6D00"
+        color = "#F97316"
     else:
-        color = "#D50000"
+        color = "#EF4444"
 
     st.markdown(
         f"""
-        <div style="margin-bottom: 8px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                <span style="font-size: 13px; color: #ccc;">{chinese_name}</span>
-                <span style="font-size: 13px; color: {color}; font-weight: bold;">{score:.1f}</span>
+        <div style="margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-size: 12px; color: #8B9DC3; letter-spacing: 0.02em;">{chinese_name}</span>
+                <span style="font-size: 13px; color: {color}; font-weight: 600; font-family: 'Fira Code', monospace;">{score:.1f}</span>
             </div>
-            <div style="background: #1a2332; border-radius: 4px; height: 8px;">
-                <div style="background: {color}; width: {score}%; height: 100%; border-radius: 4px;
-                            transition: width 0.5s ease;"></div>
+            <div style="background: #1A2332; border-radius: 3px; height: 6px; overflow: hidden;">
+                <div style="background: linear-gradient(90deg, {color}88, {color}); width: {score}%; height: 100%; border-radius: 3px;
+                            transition: width 0.6s ease; box-shadow: 0 0 8px {color}44;"></div>
             </div>
         </div>
         """,
@@ -186,22 +200,26 @@ def render_module_score_bar(module_name: str, score: float, chinese_name: str) -
 def render_alarm_item(alarm: dict[str, Any]) -> None:
     """渲染单条预警记录。"""
     level_colors = {
-        "normal": "#00C853",
-        "attention": "#FFD600",
-        "warning": "#FF6D00",
-        "severe": "#D50000",
+        "normal": "#10B981",
+        "attention": "#F59E0B",
+        "warning": "#F97316",
+        "severe": "#EF4444",
     }
-    color = level_colors.get(alarm.get("level", "normal"), "#666")
+    color = level_colors.get(alarm.get("level", "normal"), "#64748B")
     st.markdown(
         f"""
-        <div style="border-left: 3px solid {color}; padding: 8px 12px;
-                     margin-bottom: 6px; background: {color}11; border-radius: 0 8px 8px 0;">
-            <div style="display: flex; justify-content: space-between;">
-                <span style="font-weight: bold; color: {color};">{alarm.get('level', '').upper()}</span>
-                <span style="font-size: 12px; color: #888;">{alarm.get('timestamp', '')}</span>
+        <div style="border-left: 3px solid {color}; padding: 10px 14px;
+                     margin-bottom: 8px; background: #111827; border-radius: 0 6px 6px 0;
+                     border: 1px solid #1E2D4A; border-left-color: {color};
+                     box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 600; color: {color}; font-size: 11px;
+                             text-transform: uppercase; letter-spacing: 0.06em;
+                             background: {color}15; padding: 2px 8px; border-radius: 3px;">{alarm.get('level', '').upper()}</span>
+                <span style="font-size: 11px; color: #4A5568; font-family: 'Fira Code', monospace;">{alarm.get('timestamp', '')}</span>
             </div>
-            <div style="font-size: 14px; color: #ddd; margin-top: 4px;">{alarm.get('message', '')}</div>
-            <div style="font-size: 12px; color: #aaa; margin-top: 2px;">模块: {alarm.get('module', '')}</div>
+            <div style="font-size: 13px; color: #CBD5E1; margin-top: 6px; line-height: 1.5;">{alarm.get('message', '')}</div>
+            <div style="font-size: 11px; color: #64748B; margin-top: 4px;">模块: {alarm.get('module', '')}</div>
         </div>
         """,
         unsafe_allow_html=True,

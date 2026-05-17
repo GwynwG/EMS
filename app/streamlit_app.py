@@ -46,6 +46,159 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── 全局深色工业主题 CSS ──
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+/* ── 全局背景 ── */
+.stApp {
+    background: #0B1120 !important;
+    color: #E2E8F0 !important;
+}
+[data-testid="stAppViewContainer"] {
+    background: #0B1120 !important;
+}
+[data-testid="stHeader"] {
+    background: rgba(11,17,32,0.8) !important;
+    backdrop-filter: blur(12px);
+}
+
+/* ── 侧边栏 ── */
+[data-testid="stSidebar"] {
+    background: #0F1729 !important;
+    border-right: 1px solid #1E2D4A;
+}
+[data-testid="stSidebar"] [data-testid="stMarkdown"] h1,
+[data-testid="stSidebar"] [data-testid="stMarkdown"] h2,
+[data-testid="stSidebar"] [data-testid="stMarkdown"] h3 {
+    color: #E2E8F0 !important;
+}
+[data-testid="stSidebar"] .stButton > button {
+    background: #151D2E !important;
+    color: #94A3B8 !important;
+    border: 1px solid #1E2D4A !important;
+    border-radius: 6px !important;
+    margin-bottom: 2px;
+    transition: all 0.2s ease;
+    font-family: 'Fira Sans', sans-serif;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: #1C2640 !important;
+    color: #22D3EE !important;
+    border-color: #22D3EE44 !important;
+}
+[data-testid="stSidebar"] .stButton > button[kind="primary"],
+[data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] {
+    background: linear-gradient(135deg, #0E2A3D, #163350) !important;
+    color: #22D3EE !important;
+    border-color: #22D3EE !important;
+    box-shadow: 0 0 12px rgba(34,211,238,0.15);
+}
+
+/* ── 主内容区标题 ── */
+[data-testid="stMarkdownContainer"] h1 {
+    color: #F1F5F9 !important;
+    font-family: 'Fira Sans', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 {
+    color: #CBD5E1 !important;
+    font-family: 'Fira Sans', sans-serif;
+}
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li {
+    color: #94A3B8 !important;
+}
+[data-testid="stMarkdownContainer"] strong {
+    color: #E2E8F0 !important;
+}
+
+/* ── 分隔线 ── */
+hr {
+    border-color: #1E2D4A !important;
+    opacity: 0.6;
+}
+
+/* ── 按钮通用 ── */
+.stButton > button {
+    font-family: 'Fira Sans', sans-serif !important;
+    font-weight: 500 !important;
+    border-radius: 6px !important;
+    transition: all 0.2s ease !important;
+}
+.stButton > button[kind="primary"],
+.stButton > button[data-testid="stBaseButton-primary"] {
+    background: linear-gradient(135deg, #0E2A3D, #163350) !important;
+    color: #22D3EE !important;
+    border: 1px solid #22D3EE !important;
+    box-shadow: 0 0 16px rgba(34,211,238,0.12);
+}
+.stButton > button[kind="secondary"],
+.stButton > button[data-testid="stBaseButton-secondary"] {
+    background: #151D2E !important;
+    color: #8B9DC3 !important;
+    border: 1px solid #1E2D4A !important;
+}
+.stButton > button:hover {
+    border-color: #22D3EE88 !important;
+    box-shadow: 0 0 12px rgba(34,211,238,0.1);
+}
+
+/* ── Selectbox / Input ── */
+[data-testid="stSelectbox"] > div > div {
+    background: #151D2E !important;
+    border-color: #2A3650 !important;
+    color: #E2E8F0 !important;
+}
+[data-testid="stTextInput"] > div > div > input {
+    background: #151D2E !important;
+    border-color: #2A3650 !important;
+    color: #E2E8F0 !important;
+}
+
+/* ── DataFrame / Table ── */
+[data-testid="stDataFrame"] {
+    border: 1px solid #1E2D4A;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    background: #0F1729;
+    border-radius: 8px;
+    padding: 4px;
+    gap: 2px;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important;
+    color: #8B9DC3 !important;
+    border-radius: 6px;
+    font-family: 'Fira Sans', sans-serif;
+}
+.stTabs [aria-selected="true"] {
+    background: #1C2640 !important;
+    color: #22D3EE !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0B1120; }
+::-webkit-scrollbar-thumb { background: #2A3650; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3B4D6B; }
+
+/* ── Plotly / 图表背景修正 ── */
+.stPlotlyChart, .stPyplot {
+    background: #0F1729 !important;
+    border-radius: 8px;
+    padding: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Session State 初始化 ──
 if "current_page" not in st.session_state:
     st.session_state.current_page = "首页"
@@ -261,7 +414,13 @@ def render_selected_object_detail(status: dict, graph: CouplingGraph) -> None:
 
 # ── 侧边栏导航 ──
 with st.sidebar:
-    st.markdown("## ⚙ 设备监测系统")
+    st.markdown("""
+    <div style="padding: 8px 0 16px 0;">
+        <div style="font-size: 13px; color: #4A5568; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px;">SYSTEM</div>
+        <div style="font-size: 18px; font-weight: 600; color: #E2E8F0; font-family: 'Fira Sans', sans-serif;">设备监测系统</div>
+        <div style="font-size: 11px; color: #22D3EE; margin-top: 2px; font-family: 'Fira Code', monospace;">EQUIPMENT MONITORING</div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("---")
     for page in PAGES:
         if st.sidebar.button(page, key=f"nav_btn_{page}", width="stretch"):
@@ -277,7 +436,16 @@ with st.sidebar:
 def render_home_page() -> None:
     status = get_current_status()
 
-    st.markdown("# ⚙ 特种材料制备设备状态监测与智能预警系统")
+    st.markdown("""
+    <div style="margin-bottom: 24px;">
+        <div style="font-size: 11px; color: #22D3EE; text-transform: uppercase; letter-spacing: 0.12em; font-family: 'Fira Code', monospace; margin-bottom: 4px;">
+            SYSTEM DASHBOARD
+        </div>
+        <div style="font-size: 28px; font-weight: 700; color: #F1F5F9; font-family: 'Fira Sans', sans-serif; letter-spacing: -0.02em;">
+            特种材料制备设备状态监测与智能预警系统
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ── 顶部 KPI 卡片 ──
     risk_status = status["risk_level"]
@@ -306,7 +474,11 @@ def render_home_page() -> None:
     st.markdown("---")
 
     # ── 中部：四模块交互拓扑图（纯 SVG）──
-    st.markdown("### 四模块拓扑示意图")
+    st.markdown("""
+    <div style="margin-bottom: 8px;">
+        <span style="font-size: 14px; color: #64748B; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Fira Sans', sans-serif;">拓扑示意图</span>
+    </div>
+    """, unsafe_allow_html=True)
     graph = CouplingGraph()
 
     sel_obj = st.session_state.selected_object
@@ -315,7 +487,11 @@ def render_home_page() -> None:
     render_four_module_graph_svg(selected_id, status["module_scores"])
 
     # ── 图下方按钮组 ──
-    st.markdown("**点击节点查看详情:**")
+    st.markdown("""
+    <div style="margin: 12px 0 8px 0;">
+        <span style="font-size: 12px; color: #4A5568; text-transform: uppercase; letter-spacing: 0.08em;">选择监测对象</span>
+    </div>
+    """, unsafe_allow_html=True)
     btn_cols = st.columns(4)
     current_tab = st.session_state.selected_panel_tab
 
@@ -335,11 +511,21 @@ def render_home_page() -> None:
     col_detail, col_trend, col_alarm = st.columns([1, 1.5, 1])
 
     with col_detail:
-        st.markdown("### 选中对象详情")
+        st.markdown("""
+        <div style="margin-bottom: 12px;">
+            <span style="font-size: 11px; color: #22D3EE; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Fira Code', monospace;">Detail</span>
+            <div style="font-size: 16px; color: #CBD5E1; font-weight: 600; margin-top: 2px;">选中对象详情</div>
+        </div>
+        """, unsafe_allow_html=True)
         render_selected_object_detail(status, graph)
 
     with col_trend:
-        st.markdown("### 趋势图")
+        st.markdown("""
+        <div style="margin-bottom: 12px;">
+            <span style="font-size: 11px; color: #22D3EE; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Fira Code', monospace;">Trend</span>
+            <div style="font-size: 16px; color: #CBD5E1; font-weight: 600; margin-top: 2px;">趋势图</div>
+        </div>
+        """, unsafe_allow_html=True)
         df = load_model_results()
         if not df.empty:
             trend_metric = st.selectbox(
@@ -355,7 +541,12 @@ def render_home_page() -> None:
             st.info("暂无模型结果数据，请先运行训练脚本")
 
     with col_alarm:
-        st.markdown("### 最新预警")
+        st.markdown("""
+        <div style="margin-bottom: 12px;">
+            <span style="font-size: 11px; color: #EF4444; text-transform: uppercase; letter-spacing: 0.08em; font-family: 'Fira Code', monospace;">Alerts</span>
+            <div style="font-size: 16px; color: #CBD5E1; font-weight: 600; margin-top: 2px;">最新预警</div>
+        </div>
+        """, unsafe_allow_html=True)
         alarm_service = AlarmService()
         if not df.empty:
             last = df.iloc[-1]

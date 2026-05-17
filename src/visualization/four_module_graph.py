@@ -44,47 +44,47 @@ EDGE_DEFS = [
     {"id": "intelligent_model__diagnosis_layer",          "src": "intelligent_model",        "tgt": "diagnosis_layer",          "label": "", "type": "auxiliary"},
 ]
 
-# ── 颜色定义 ──
+# ── 颜色定义 (工业深色主题) ──
 GROUP_COLORS = {
-    "core":      {"fill": "#E3F2FD", "stroke": "#1565C0"},
-    "diagnosis": {"fill": "#F3E5F5", "stroke": "#6A1B9A"},
-    "residual":  {"fill": "#FFF3E0", "stroke": "#E65100"},
-    "model":     {"fill": "#E8F5E9", "stroke": "#2E7D32"},
+    "core":      {"fill": "#0E2A3D", "stroke": "#22D3EE"},
+    "diagnosis": {"fill": "#1A1040", "stroke": "#A78BFA"},
+    "residual":  {"fill": "#2A1A0E", "stroke": "#F97316"},
+    "model":     {"fill": "#0E2A1A", "stroke": "#10B981"},
 }
 
 EDGE_COLORS = {
-    "main":      {"stroke": "#2878D8", "width": 2.5},
-    "feedback":  {"stroke": "#FF9800", "width": 2.0},
-    "auxiliary": {"stroke": "#8A96A3", "width": 1.5},
+    "main":      {"stroke": "#22D3EE", "width": 2.0},
+    "feedback":  {"stroke": "#F59E0B", "width": 1.8},
+    "auxiliary": {"stroke": "#4A5568", "width": 1.2},
 }
 
-SELECTED_COLOR = "#FFF176"
+SELECTED_COLOR = "#FFFFFE"
 
 
 def _score_to_fill(score: float | None, group: str) -> str:
-    """根据健康分数返回节点填充色。"""
+    """根据健康分数返回节点填充色（深色主题）。"""
     if score is None:
         return GROUP_COLORS.get(group, GROUP_COLORS["core"])["fill"]
     if score >= 80:
-        return "#C8E6C9"   # 浅绿
+        return "#0A2E1A"   # 深绿
     elif score >= 60:
-        return "#FFF9C4"   # 浅黄
+        return "#2A2200"   # 深黄
     elif score >= 40:
-        return "#FFE0B2"   # 浅橙
-    return "#FFCDD2"       # 浅红
+        return "#2A1A0A"   # 深橙
+    return "#2A0A0A"       # 深红
 
 
 def _score_to_stroke(score: float | None, group: str) -> str:
-    """根据健康分数返回节点边框色。"""
+    """根据健康分数返回节点边框色（深色主题）。"""
     if score is None:
         return GROUP_COLORS.get(group, GROUP_COLORS["core"])["stroke"]
     if score >= 80:
-        return "#2E7D32"
+        return "#10B981"
     elif score >= 60:
-        return "#F9A825"
+        return "#F59E0B"
     elif score >= 40:
-        return "#EF6C00"
-    return "#C62828"
+        return "#F97316"
+    return "#EF4444"
 
 
 def _node_center(nd: dict) -> tuple[float, float]:
@@ -137,7 +137,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         </filter>''',
     ]
 
-    for etype, ecolor in [("main", "#2878D8"), ("feedback", "#FF9800"), ("auxiliary", "#8A96A3")]:
+    for etype, ecolor in [("main", "#22D3EE"), ("feedback", "#F59E0B"), ("auxiliary", "#4A5568")]:
         mid = f"arrow_{etype}"
         defs_parts.append(_build_arrow_marker(etype, ecolor, mid))
 
@@ -175,7 +175,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
             else:
                 mx += 15
                 my -= 10
-            label_html = f'<text x="{mx}" y="{my}" font-size="11" fill="{color}" text-anchor="middle" font-weight="{"bold" if is_sel else "normal"}">{edge["label"]}</text>'
+            label_html = f'<text x="{mx}" y="{my}" font-size="11" fill="{color}" text-anchor="middle" font-weight="{"bold" if is_sel else "normal"}" font-family="Fira Sans, sans-serif" opacity="0.85">{edge["label"]}</text>'
 
         glow = ' filter="url(#glow)"' if is_sel else ""
         edge_parts.append(
@@ -206,13 +206,13 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
         score_text = ""
         if score is not None:
-            score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#555" text-anchor="middle" font-weight="500">{score:.1f}</text>'
+            score_text = f'<text x="{nd["x"]}" y="{nd["y"] + 8}" font-size="12" fill="#8B9DC3" text-anchor="middle" font-weight="500" font-family="Fira Code, monospace">{score:.1f}</text>'
 
         node_parts.append(
             f'<g>'
             f'<rect x="{x}" y="{y}" width="{nd["w"]}" height="{nd["h"]}" rx="{r}" ry="{r}" '
             f'fill="{fill}" stroke="{stroke}" stroke-width="{stroke_w}"{glow}/>'
-            f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="14" fill="#222" text-anchor="middle" font-weight="{font_w}">{nd["label"]}</text>'
+            f'<text x="{nd["x"]}" y="{nd["y"] - 4}" font-size="13" fill="#E2E8F0" text-anchor="middle" font-weight="{font_w}" font-family="Fira Sans, sans-serif">{nd["label"]}</text>'
             f'{score_text}'
             f'</g>'
         )
@@ -221,15 +221,15 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 
     # ── 组装完整 HTML ──
     svg_html = f"""
-<div style="background:#EEF3F8; border-radius:12px; border:1px solid #D0D9E4; padding:8px; width:100%; box-sizing:border-box; overflow:hidden; pointer-events:none;">
+<div style="background:#0F1729; border-radius:10px; border:1px solid #1E2D4A; padding:8px; width:100%; box-sizing:border-box; overflow:hidden; pointer-events:none; box-shadow: 0 4px 24px rgba(0,0,0,0.4);">
 <svg viewBox="0 0 1200 760" width="100%" height="760" preserveAspectRatio="xMidYMid meet"
      xmlns="http://www.w3.org/2000/svg" style="pointer-events:none; display:block; margin:0 auto;">
 <defs>
 {defs_str}
 </defs>
-<rect x="0" y="0" width="1200" height="760" rx="8" ry="8" fill="#F6F8FC"/>
-<text x="600" y="36" font-size="18" font-weight="bold" fill="#333" text-anchor="middle">四模块交互拓扑图</text>
-<text x="600" y="56" font-size="12" fill="#888" text-anchor="middle">特种材料制备设备状态监测系统</text>
+<rect x="0" y="0" width="1200" height="760" rx="8" ry="8" fill="#0B1120"/>
+<text x="600" y="36" font-size="16" font-weight="600" fill="#CBD5E1" text-anchor="middle" font-family="Fira Sans, sans-serif" letter-spacing="0.04em">四模块交互拓扑图</text>
+<text x="600" y="56" font-size="11" fill="#4A5568" text-anchor="middle" font-family="Fira Sans, sans-serif">特种材料制备设备状态监测系统</text>
 {edges_str}
 {nodes_str}
 </svg>
