@@ -4,9 +4,18 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# 项目根目录
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+# 桌面版入口：先加载 desktop_windows/runtime，再桥接到原项目 src。
+DESKTOP_ROOT = Path(__file__).resolve().parent.parent
+RUNTIME_ROOT = DESKTOP_ROOT / "runtime"
+PROJECT_ROOT = DESKTOP_ROOT if (DESKTOP_ROOT / "src").exists() else DESKTOP_ROOT.parent
+
+sys.path.insert(0, str(RUNTIME_ROOT))
+sys.path.insert(1, str(PROJECT_ROOT))
+
+# 预先加载 runtime 下的 src 命名空间，使桌面版 utils 覆盖原网页端 utils。
+import src  # noqa: F401,E402
+
+ROOT = PROJECT_ROOT
 
 import json
 import numpy as np
@@ -20,6 +29,7 @@ from src.models.health_index import HealthIndexCalculator
 from src.models.risk_fusion import RiskFusion
 from src.online_monitoring.alarm_service import AlarmService
 from src.utils.config_loader import load_app_config, load_alarm_rules
+from src.utils.app_paths import display_path, initialize_user_data, resolve_path
 from src.utils.file_utils import load_csv
 from src.visualization.four_module_graph import (
     render_four_module_graph_svg,
@@ -52,6 +62,8 @@ from src.visualization.theme import (
     FONT_FAMILY,
     FONT_MONO,
 )
+
+initialize_user_data()
 
 # ── 页面配置 ──
 st.set_page_config(
@@ -289,7 +301,7 @@ def update_selected_object(sel_type: str, sel_id: str) -> None:
 @st.cache_data
 def load_model_results() -> pd.DataFrame:
     """加载模型结果数据。"""
-    path = ROOT / "data" / "processed" / "model_results.csv"
+    path = resolve_path("data/processed/model_results.csv")
     if path.exists():
         return load_csv(path, index_col=0, parse_dates=True)
     return pd.DataFrame()
@@ -299,7 +311,7 @@ def load_model_results() -> pd.DataFrame:
 def load_fused_features() -> pd.DataFrame:
     """加载融合特征。"""
     for name in ["fused_features_selected.csv", "fused_features.csv"]:
-        path = ROOT / "data" / "processed" / name
+        path = resolve_path(Path("data/processed") / name)
         if path.exists():
             return load_csv(path, index_col=0, parse_dates=True)
     return pd.DataFrame()
@@ -659,7 +671,7 @@ def render_data_page() -> None:
             st.info(f"共 {len(df)} 行 × {len(df.columns)} 列")
 
         st.markdown("### 已导入数据")
-        processed_path = ROOT / "data" / "processed" / "imported_data.csv"
+        processed_path = resolve_path("data/processed/imported_data.csv")
         if processed_path.exists():
             df = load_csv(processed_path, index_col=0, parse_dates=True)
             st.dataframe(df.tail(20), width="stretch")
@@ -671,7 +683,7 @@ def render_data_page() -> None:
         st.markdown("### DCS 实时数据连接")
         st.info("当前使用 MockDCSConnector 模拟实时数据流。")
         st.markdown("- 连接类型: Mock")
-        st.markdown("- 数据源: data/processed/cleaned_data.csv")
+        st.markdown(f"- 数据源: {display_path(resolve_path('data/processed/cleaned_data.csv'))}")
         st.markdown("- 轮询间隔: 2.0s")
         st.markdown("- 缓冲区大小: 500")
 

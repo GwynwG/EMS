@@ -1,0 +1,4 @@
+-r ../requirements.txt
+plotly>=5.18.0
+pyinstaller>=6.0.0
+streamlit-echarts>=0.4.0
