@@ -442,6 +442,43 @@ def render_contribution_variables_table(variables: list[dict], selected_module: 
     )
 
 
+def render_contribution_dataframe(variables: list[dict], selected_module: str = "") -> None:
+    """渲染主要贡献变量全宽表格（使用 st.dataframe）。"""
+    import pandas as pd
+
+    if not variables:
+        st.info("暂无贡献变量数据")
+        return
+
+    df = pd.DataFrame(variables[:15])
+    col_map = {
+        "variable": "变量名",
+        "chinese_name": "中文名",
+        "module": "所属模块",
+        "current_value": "当前值",
+        "unit": "单位",
+        "contribution_degree": "贡献度",
+        "status": "状态",
+    }
+    # 只 rename 存在的列
+    df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+    if "所属模块" in df.columns:
+        df["所属模块"] = df["所属模块"].map(lambda m: MODULE_SHORT_CHINESE.get(m, m))
+
+    column_config = {}
+    if "贡献度" in df.columns:
+        column_config["贡献度"] = st.column_config.ProgressColumn(
+            "贡献度", min_value=0, max_value=1, format="%.2f"
+        )
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        column_config=column_config,
+    )
+
+
 def format_module_relation_display(relation_str: str) -> str:
     """将模块关系字符串格式化为中文显示（支持 → 箭头）。"""
     for sep in [" ↔ ", " ↔ ", " → ", " -> ", " - ", " <-> "]:

@@ -36,9 +36,15 @@ from src.visualization.dashboard_components import (
     render_system_status_summary_blocks,
     render_relationship_status_table,
     render_contribution_variables_table,
+    render_contribution_dataframe,
     format_coupling_text,
     MODULE_ID_TO_CHINESE,
     MODULE_SHORT_CHINESE,
+)
+from src.visualization.plotly_charts import (
+    render_single_line_chart,
+    render_multi_line_chart,
+    render_trend_tab_content,
 )
 from src.visualization.theme import (
     BG_MAIN,
@@ -335,6 +341,28 @@ def load_fused_features() -> pd.DataFrame:
     return pd.DataFrame()
 
 
+@st.cache_resource
+def get_coupling_graph():
+    """缓存 CouplingGraph 实例（跨会话共享）。"""
+    return CouplingGraph()
+
+
+@st.cache_data(ttl=60)
+def _compute_var_contribs(module_scores_tuple: tuple) -> list[dict]:
+    """缓存变量贡献计算结果。"""
+    return ModuleScorer.compute_variable_contributions(
+        dict(module_scores_tuple), str(ROOT / "configs" / "variable_dictionary.yaml")
+    )
+
+
+@st.cache_data(ttl=60)
+def _compute_edge_contribs(module_scores_tuple: tuple) -> list[dict]:
+    """缓存耦合边贡献计算结果。"""
+    graph = get_coupling_graph()
+    return ModuleScorer.compute_edge_contributions(dict(module_scores_tuple), graph)
+
+
+@st.cache_data(ttl=60)
 def get_current_status() -> dict:
     """获取当前系统状态（从模型结果中取最新值）。"""
     df = load_model_results()
@@ -553,9 +581,12 @@ with st.sidebar:
     """, unsafe_allow_html=True)
     st.markdown("---")
     for page in PAGES:
-        if st.sidebar.button(page, key=f"nav_btn_{page}", width="stretch"):
-            st.session_state.current_page = page
-            st.rerun()
+        is_active = (page == st.session_state.current_page)
+        btn_type = "primary" if is_active else "secondary"
+        if st.sidebar.button(page, key=f"nav_btn_{page}", type=btn_type, width="stretch"):
+            if not is_active:
+                st.session_state.current_page = page
+                st.rerun()
     st.markdown("---")
     st.caption("v1.0.0 | 四模块领域模型")
 
@@ -569,7 +600,7 @@ def render_home_page() -> None:
 
     status = get_current_status()
     df = load_model_results()
-    graph = CouplingGraph()
+    graph = get_coupling_graph()
     module_scores = status.get("module_scores", {})
 
     # ── Section 1: 页面标题区 ──
@@ -614,7 +645,7 @@ def render_home_page() -> None:
 
     # Row 2: 解释来源
     # 找主要贡献变量
-    var_contribs = ModuleScorer.compute_variable_contributions(module_scores, str(ROOT / "configs" / "variable_dictionary.yaml"))
+    var_contribs = _compute_var_contribs(tuple(sorted(module_scores.items())))
     top_var_cn = var_contribs[0]["chinese_name"] if var_contribs else "无"
     top_var_module = MODULE_SHORT_CHINESE.get(var_contribs[0]["module"], "") if var_contribs else ""
     model_status_text = "PCA/IF/HI 已加载"
@@ -659,8 +690,9 @@ def render_home_page() -> None:
             is_selected = (btn_id == current_tab)
             btn_type = "primary" if is_selected else "secondary"
             if st.button(btn_label, key=f"panel_btn_{btn_id}", type=btn_type, width="stretch"):
-                update_selected_object(btn_cfg["type"], btn_id)
-                st.rerun()
+                if not is_selected:
+                    update_selected_object(btn_cfg["type"], btn_id)
+                    st.rerun()
 
     st.markdown("---")
 
@@ -682,62 +714,46 @@ def render_home_page() -> None:
         <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">模块间耦合关系状态</div>
     </div>
     """, unsafe_allow_html=True)
-    edges_data = ModuleScorer.compute_edge_contributions(module_scores, graph)
+    edges_data = _compute_edge_contribs(tuple(sorted(module_scores.items())))
     highlighted_relation = st.session_state.highlighted_relation_id or ""
     render_relationship_status_table(edges_data, highlighted_relation)
 
     st.markdown("---")
 
-    # ── Section 8: 趋势与预警区 ──
-    col_trend, col_alarm_contrib = st.columns([1.5, 1])
+    # ── Section 8: 趋势监测 / 贡献变量 / 预警记录 ──
+    st.markdown(f"""
+    <div style="margin-bottom: 12px;">
+        <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Analysis</span>
+        <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">数据分析</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with col_trend:
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Trends</span>
-            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">趋势与预警</div>
-        </div>
-        """, unsafe_allow_html=True)
+    tab_trend, tab_contrib, tab_alarm = st.tabs(["趋势监测", "贡献变量", "预警记录"])
 
+    with tab_trend:
         if not df.empty:
-            tcol1, tcol2 = st.columns(2)
-            with tcol1:
-                st.markdown(f"<div style='font-size:13px; color:{TEXT_SECONDARY}; margin-bottom:4px;'>风险分数趋势</div>", unsafe_allow_html=True)
-                if "risk_score" in df.columns:
-                    st.line_chart(df["risk_score"].tail(200))
-            with tcol2:
-                st.markdown(f"<div style='font-size:13px; color:{TEXT_SECONDARY}; margin-bottom:4px;'>健康指数趋势</div>", unsafe_allow_html=True)
-                if "health_index" in df.columns:
-                    st.line_chart(df["health_index"].tail(200))
-
-            # 最新预警
-            last = df.iloc[-1]
-            if last.get("risk_level") in ("warning", "severe"):
-                render_alarm_item({
-                    "level": last.get("risk_level", "normal"),
-                    "message": f"风险分数 {last.get('risk_score', 0):.1f}",
-                    "module": MODULE_SHORT_CHINESE.get(status["main_abnormal_module"], status["main_abnormal_module"]),
-                    "timestamp": str(df.index[-1]),
-                })
-            if last.get("pca_anomaly_score", 0) > 1.0:
-                render_alarm_item({
-                    "level": "attention",
-                    "message": f"PCA 异常分数 {last.get('pca_anomaly_score', 0):.2f}",
-                    "module": "状态维持",
-                    "timestamp": str(df.index[-1]),
-                })
+            render_trend_tab_content(df)
         else:
             st.info("暂无模型结果数据，请先运行训练脚本")
 
-    with col_alarm_contrib:
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Contributors</span>
-            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">主要贡献变量</div>
-        </div>
-        """, unsafe_allow_html=True)
+    with tab_contrib:
         selected_module = st.session_state.selected_module or ""
-        render_contribution_variables_table(var_contribs, selected_module)
+        render_contribution_dataframe(var_contribs, selected_module)
+
+    with tab_alarm:
+        if not df.empty:
+            if "risk_level" in df.columns:
+                alarm_df = df[df["risk_level"].isin(["warning", "severe"])]
+                if not alarm_df.empty:
+                    st.info(f"共 {len(alarm_df)} 条预警记录")
+                    display_cols = [c for c in ["risk_score", "risk_level", "health_index", "pca_anomaly_score"] if c in alarm_df.columns]
+                    st.dataframe(alarm_df[display_cols].tail(50), use_container_width=True, hide_index=True)
+                else:
+                    st.success("暂无预警记录，设备状态正常。")
+            else:
+                st.info("暂无预警数据")
+        else:
+            st.info("暂无预警数据")
 
 
 # ════════════════════════════════════════════════════════════
@@ -776,7 +792,7 @@ def render_module_page(module_type: ModuleType) -> None:
         module_cols = [c for c in df.columns if c.startswith(f"{module_type.value}__")]
         if module_cols:
             st.dataframe(df[module_cols].tail(50), width="stretch")
-            st.line_chart(df[module_cols].tail(200))
+            render_multi_line_chart(df[module_cols].tail(200), columns=module_cols, title="模块特征趋势", height=350)
         else:
             st.info("该模块暂无特征数据")
 
@@ -842,7 +858,7 @@ def render_feature_page() -> None:
             cols = [c for c in df.columns if c.startswith(f"{mod}__")]
             if cols:
                 st.dataframe(df[cols].tail(100), width="stretch")
-                st.line_chart(df[cols].tail(200))
+                render_multi_line_chart(df[cols].tail(200), columns=cols, title="特征趋势", height=350)
             else:
                 st.info(f"该模块暂无特征")
 
@@ -863,22 +879,22 @@ def render_model_page() -> None:
     with col1:
         st.markdown("### PCA 监测模型")
         if "pca_anomaly_score" in df.columns:
-            st.line_chart(df["pca_anomaly_score"].tail(200))
+            render_single_line_chart(df["pca_anomaly_score"].tail(200), "PCA 异常分数", RISK_RED, height=300)
         if "pca_t2" in df.columns:
-            st.line_chart(df["pca_t2"].tail(200))
+            render_single_line_chart(df["pca_t2"].tail(200), "PCA T2 统计量", TEXT_SECONDARY, height=300)
 
     with col2:
         st.markdown("### Isolation Forest")
         if "if_anomaly_score" in df.columns:
-            st.line_chart(df["if_anomaly_score"].tail(200))
+            render_single_line_chart(df["if_anomaly_score"].tail(200), "IF 异常分数", ACCENT_BLUE, height=300)
 
     st.markdown("### 健康指数趋势")
     if "health_index" in df.columns:
-        st.line_chart(df["health_index"].tail(200))
+        render_single_line_chart(df["health_index"].tail(200), "健康指数", ACCENT_BLUE, y_label="健康指数")
 
     st.markdown("### 风险分数趋势")
     if "risk_score" in df.columns:
-        st.line_chart(df["risk_score"].tail(200))
+        render_single_line_chart(df["risk_score"].tail(200), "风险分数", RISK_RED, y_label="风险分数")
 
 
 # ════════════════════════════════════════════════════════════
@@ -953,7 +969,7 @@ def render_health_trend_page() -> None:
 
     if "health_index" in df.columns:
         st.markdown("### 健康指数历史趋势")
-        st.line_chart(df["health_index"])
+        render_single_line_chart(df["health_index"], "健康指数历史趋势", ACCENT_BLUE, y_label="健康指数")
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -973,7 +989,7 @@ def render_health_trend_page() -> None:
             )
     if module_scores_data:
         scores_df = pd.DataFrame(module_scores_data)
-        st.line_chart(scores_df)
+        render_multi_line_chart(scores_df, columns=list(scores_df.columns), title="模块评分趋势")
 
 
 # ════════════════════════════════════════════════════════════

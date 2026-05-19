@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+import streamlit as st
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -19,6 +20,7 @@ def _resolve_path(path: str | Path) -> Path:
     return _PROJECT_ROOT / p
 
 
+@st.cache_data(ttl=3600)
 def load_yaml(path: str | Path) -> dict[str, Any]:
     """加载 YAML 配置文件并返回字典。"""
     fp = _resolve_path(path)
@@ -54,12 +56,14 @@ def load_alarm_rules() -> dict[str, Any]:
     return load_yaml("configs/alarm_rules.yaml")
 
 
+@st.cache_data(ttl=3600)
 def get_variable_by_module(module: str) -> list[dict[str, Any]]:
     """按模块名过滤变量字典。"""
     all_vars = load_variable_dictionary()
     return [v for v in all_vars if v.get("module") == module and v.get("enabled", True)]
 
 
+@st.cache_data(ttl=3600)
 def get_enabled_variables() -> list[dict[str, Any]]:
     """返回所有已启用的变量。"""
     return [v for v in load_variable_dictionary() if v.get("enabled", True)]
