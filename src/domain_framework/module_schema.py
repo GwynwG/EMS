@@ -14,6 +14,10 @@ class ModuleType(str, Enum):
     ENERGY_INPUT = "energy_input"
     ENVIRONMENTAL_CONSTRAINT = "environmental_constraint"
     STATE_MAINTENANCE = "state_maintenance"
+    DIAGNOSIS_LAYER = "diagnosis_layer"
+    COUPLING_RESIDUAL = "coupling_residual"
+    MODEL_RESIDUAL = "model_residual"
+    INTELLIGENT_MODEL = "intelligent_model"
 
 
 @dataclass
@@ -78,6 +82,34 @@ MODULE_REGISTRY: dict[ModuleType, ModuleMeta] = {
             "furnace_pressure", "vibration_x", "vibration_y",
             "temp_stability_index", "degradation_index",
         ],
+    ),
+    ModuleType.DIAGNOSIS_LAYER: ModuleMeta(
+        module_type=ModuleType.DIAGNOSIS_LAYER,
+        label="Diagnosis Layer",
+        chinese_name="诊断层",
+        description="状态监测、异常预警、寿命评估、健康指数计算。",
+        variables=[],
+    ),
+    ModuleType.COUPLING_RESIDUAL: ModuleMeta(
+        module_type=ModuleType.COUPLING_RESIDUAL,
+        label="Coupling Residual",
+        chinese_name="复杂耦合/残差",
+        description="多源耦合残差处理，捕获模块间非线性交互产生的残差信号。",
+        variables=[],
+    ),
+    ModuleType.MODEL_RESIDUAL: ModuleMeta(
+        module_type=ModuleType.MODEL_RESIDUAL,
+        label="Model Residual",
+        chinese_name="模型残差",
+        description="基础统计模型（PCA/PLS）输出的残差，用于残差监测和异常检测。",
+        variables=[],
+    ),
+    ModuleType.INTELLIGENT_MODEL: ModuleMeta(
+        module_type=ModuleType.INTELLIGENT_MODEL,
+        label="Intelligent Model",
+        chinese_name="智能补偿模型",
+        description="智能补偿模型（XGBoost/Autoencoder等），用于复杂耦合关系的智能建模和残差补偿。",
+        variables=[],
     ),
 }
 

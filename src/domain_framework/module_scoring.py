@@ -4,10 +4,12 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+import yaml
 
 from src.domain_framework.module_schema import ModuleType, get_module_meta
 from src.utils.config_loader import load_model_config
@@ -152,3 +154,204 @@ class ModuleScorer:
             m1, m2 = sorted_modules[0][0], sorted_modules[1][0]
             return f"{m1} ↔ {m2}"
         return "无"
+
+    # ── 驾驶舱展示用的计算方法（基于 demo/mock 数据）──────────────
+
+    @staticmethod
+    def compute_edge_contributions(
+        module_scores: dict[str, float],
+        coupling_graph: Any,
+    ) -> list[dict]:
+        """为每条耦合边生成展示用的贡献数据。
+
+        基于源/目标模块评分反向推导：评分越低 → 耦合强度/残差/贡献越高。
+        """
+        from src.visualization.dashboard_components import MODULE_SHORT_CHINESE
+
+        edges_data = []
+        for edge in coupling_graph.edges:
+            src_score = module_scores.get(edge.source, 80.0)
+            tgt_score = module_scores.get(edge.target, 80.0)
+            avg_score = (src_score + tgt_score) / 2.0
+
+            # 耦合强度：与模块健康分反相关
+            coupling_strength = round(max(0.1, min(1.0, (100 - avg_score) / 100 * 1.2 + 0.3)), 2)
+            # 残差水平：与模块健康分反相关
+            residual_level = round(max(0.05, min(1.0, (100 - avg_score) / 100 * 0.8 + 0.1)), 2)
+            # 风险贡献
+            risk_contribution = round(max(0.0, min(1.0, (100 - avg_score) / 100)), 2)
+
+            # 状态判定
+            if risk_contribution > 0.6:
+                status_text = "预警"
+            elif risk_contribution > 0.4:
+                status_text = "关注"
+            else:
+                status_text = "正常"
+
+            # 模型名称映射
+            model_map = {
+                "main": "PCA/PLS 监测模型",
+                "feedback": "状态反馈规则",
+                "auxiliary": "IF/XGBoost 异常检测",
+            }
+
+            src_cn = MODULE_SHORT_CHINESE.get(edge.source, edge.source)
+            tgt_cn = MODULE_SHORT_CHINESE.get(edge.target, edge.target)
+
+            edges_data.append({
+                "id": f"{edge.source}__{edge.target}",
+                "relation_name": f"{src_cn} → {tgt_cn}",
+                "relation_type": edge.edge_type,
+                "coupling_strength": coupling_strength,
+                "residual_level": residual_level,
+                "risk_contribution": risk_contribution,
+                "model_name": model_map.get(edge.edge_type, "综合模型"),
+                "current_status": status_text,
+                "main_contributing_variable": edge.main_contributing_variable or "",
+            })
+        return edges_data
+
+    @staticmethod
+    def compute_variable_contributions(
+        module_scores: dict[str, float],
+        variable_dict_path: str = "configs/variable_dictionary.yaml",
+    ) -> list[dict]:
+        """为所有变量生成展示用的贡献数据。
+
+        低评分模块的变量获得更高的 contribution_degree。
+        """
+        path = Path(variable_dict_path)
+        if not path.exists():
+            return []
+
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        variables = data.get("variables", [])
+        result = []
+
+        # 按模块评分排序，低分模块的变量排在前面
+        sorted_modules = sorted(module_scores.items(), key=lambda x: x[1])
+
+        for var in variables:
+            if not var.get("enabled", True):
+                continue
+            module = var.get("module", "")
+            score = module_scores.get(module, 80.0)
+
+            # 贡献度：与模块健康分反相关，加随机偏移
+            base = (100 - score) / 100
+            name_hash = sum(ord(c) for c in var.get("standard_name", "")) % 20 / 100
+            contribution = round(min(1.0, max(0.05, base * 0.8 + name_hash * 0.3)), 2)
+
+            # 状态判定
+            if contribution > 0.5:
+                status = "预警"
+            elif contribution > 0.3:
+                status = "关注"
+            else:
+                status = "正常"
+
+            # 模拟当前值
+            unit = var.get("unit", "")
+            name_lower = var.get("standard_name", "")
+            if "temp" in name_lower:
+                current_value = round(80 + score * 2 + name_hash * 10, 1)
+            elif "pressure" in name_lower:
+                current_value = round(2 + score * 0.05, 2)
+            elif "flow" in name_lower:
+                current_value = round(10 + score * 0.3, 1)
+            elif "vibration" in name_lower:
+                current_value = round(1 + (100 - score) * 0.1, 2)
+            elif "power" in name_lower or "voltage" in name_lower or "current" in name_lower:
+                current_value = round(100 + score * 2 + name_hash * 20, 1)
+            else:
+                current_value = round(score + name_hash * 10, 2)
+
+            result.append({
+                "variable": var.get("standard_name", ""),
+                "chinese_name": var.get("chinese_name", ""),
+                "module": module,
+                "current_value": current_value,
+                "unit": unit,
+                "contribution_degree": contribution,
+                "status": status,
+            })
+
+        # 按贡献度降序排列
+        result.sort(key=lambda x: x["contribution_degree"], reverse=True)
+        return result
+
+    @staticmethod
+    def compute_system_status_summary(
+        status: dict,
+        df: pd.DataFrame,
+    ) -> dict:
+        """生成系统状态摘要数据（4 个区块）。"""
+        # 数据质量指标
+        if not df.empty:
+            missing_rate = round(df.isna().sum().sum() / (df.shape[0] * df.shape[1]) * 100, 2) if df.size > 0 else 0
+            valid_rate = round(100 - missing_rate, 2)
+        else:
+            missing_rate = 0
+            valid_rate = 0
+
+        # 模块评分排序
+        module_scores = status.get("module_scores", {})
+        sorted_modules = sorted(module_scores.items(), key=lambda x: x[1])
+
+        # 主要贡献变量（取前 3 个低分模块的代表变量）
+        focus_vars = []
+        from src.visualization.dashboard_components import MODULE_SHORT_CHINESE
+        for mod_id, _ in sorted_modules[:2]:
+            focus_vars.append(MODULE_SHORT_CHINESE.get(mod_id, mod_id))
+
+        return {
+            "data_link": {
+                "excel_imported": True,
+                "dcs_status": "Mock 模拟运行",
+                "quality_metrics": {
+                    "missing_rate": f"{missing_rate}%",
+                    "abnormal_jump_rate": "0.3%",
+                    "frozen_value_ratio": "0.1%",
+                    "valid_sample_rate": f"{valid_rate}%",
+                    "data_source": "Excel 历史数据 (Mock DCS)",
+                },
+            },
+            "model_status": {
+                "pca": "已加载",
+                "pls": "预留接口",
+                "if_model": "已加载",
+                "health_index": "已启用",
+                "intelligent": "待训练",
+                "version": "v1.0-demo",
+            },
+            "risk_sources": {
+                "statistical_residual": {
+                    "label": "统计残差异常",
+                    "value": f"{status.get('pca_anomaly_score', 0):.2f}",
+                    "active": status.get("pca_anomaly_score", 0) > 1.0,
+                },
+                "module_score": {
+                    "label": "模块评分异常",
+                    "value": f"{sorted_modules[0][1]:.1f}" if sorted_modules else "N/A",
+                    "active": sorted_modules[0][1] < 60 if sorted_modules else False,
+                },
+                "complex_coupling": {
+                    "label": "复杂耦合残差",
+                    "value": "0.35",
+                    "active": False,
+                },
+                "event_rules": {
+                    "label": "事件规则触发",
+                    "value": "0",
+                    "active": False,
+                },
+            },
+            "recommended_focus": {
+                "module": MODULE_SHORT_CHINESE.get(sorted_modules[0][0], "") if sorted_modules else "",
+                "variable": focus_vars[0] if focus_vars else "",
+                "coupling": f"{focus_vars[0]} → {focus_vars[1]}" if len(focus_vars) >= 2 else "",
+            },
+        }

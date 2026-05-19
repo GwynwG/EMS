@@ -8,7 +8,7 @@ from __future__ import annotations
 # ════════════════════════════════════════════════════════════
 # 背景色（黑灰系）
 # ════════════════════════════════════════════════════════════
-BG_MAIN = "#1E1E1E"           # 页面背景
+BG_MAIN = "#252A33"           # 页面背景（深灰底，不纯黑）
 BG_SIDEBAR = "#252526"        # 侧边栏背景
 BG_CONTENT = "#1F232A"        # 主内容区域背景
 BG_CARD = "#2A2D33"           # 卡片背景（统一）
@@ -104,3 +104,12 @@ SELECTED_STROKE_WIDTH = 3.0
 # ════════════════════════════════════════════════════════════
 FONT_FAMILY = '"Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif'
 FONT_MONO = '"Cascadia Code", "Fira Code", "Consolas", monospace'
+
+# ════════════════════════════════════════════════════════════
+# 驾驶舱新增常量
+# ════════════════════════════════════════════════════════════
+BG_SUMMARY_BLOCK = "#2A2D33"    # 系统状态摘要区块背景
+BORDER_SUMMARY = "#3A3F46"      # 摘要区块边框
+TABLE_HEADER_BG = "#2A2D33"     # 表格头背景
+TABLE_ROW_ALT = "#252830"       # 表格交替行背景
+HIGHLIGHT_ROW_BG = "rgba(79,193,255,0.08)"  # 选中行高亮背景

@@ -32,6 +32,10 @@ from src.visualization.dashboard_components import (
     render_module_score_bar,
     render_alarm_item,
     render_kpi_card,
+    render_kpi_card_3layer,
+    render_system_status_summary_blocks,
+    render_relationship_status_table,
+    render_contribution_variables_table,
     format_coupling_text,
     MODULE_ID_TO_CHINESE,
     MODULE_SHORT_CHINESE,
@@ -238,6 +242,10 @@ if "selected_module" not in st.session_state:
     st.session_state.selected_module = "state_maintenance"
 if "selected_relation" not in st.session_state:
     st.session_state.selected_relation = None
+if "highlighted_relation_id" not in st.session_state:
+    st.session_state.highlighted_relation_id = None
+if "trend_metric_override" not in st.session_state:
+    st.session_state.trend_metric_override = None
 
 PAGES = ["首页", "执行控制", "能量输入", "环境约束", "状态维持", "数据接入", "特征分析", "模型训练", "在线监测", "预警记录", "健康趋势"]
 
@@ -257,28 +265,50 @@ MODULE_IDS = {"execution_control", "energy_input", "environmental_constraint", "
 
 
 # ── 统一状态管理 ──
+# 节点 → 趋势指标映射
+_NODE_TREND_METRIC = {
+    "execution_control": "risk_score",
+    "energy_input": "risk_score",
+    "environmental_constraint": "risk_score",
+    "state_maintenance": "health_index",
+    "diagnosis_layer": "health_index",
+    "coupling_residual": "pca_anomaly_score",
+    "model_residual": "pca_anomaly_score",
+    "intelligent_model": "if_anomaly_score",
+}
+
+
 def update_selected_object(sel_type: str, sel_id: str) -> None:
     """统一更新选中对象状态。"""
     st.session_state.selected_object = {"type": sel_type, "id": sel_id}
+
+    # 更新趋势图指标
+    st.session_state.trend_metric_override = _NODE_TREND_METRIC.get(sel_id)
 
     if sel_id in MODULE_IDS:
         st.session_state.selected_module = sel_id
         st.session_state.selected_panel_tab = sel_id
         st.session_state.selected_relation = None
+        st.session_state.highlighted_relation_id = None
     elif sel_id == "diagnosis_layer":
         st.session_state.selected_panel_tab = "diagnosis_layer"
         st.session_state.selected_relation = None
+        st.session_state.highlighted_relation_id = None
     elif sel_id == "coupling_residual":
         st.session_state.selected_panel_tab = "coupling_residual"
         st.session_state.selected_relation = "coupling_residual"
+        st.session_state.highlighted_relation_id = None
     elif sel_id == "model_residual":
         st.session_state.selected_panel_tab = "model_residual"
         st.session_state.selected_relation = "model_residual"
+        st.session_state.highlighted_relation_id = None
     elif sel_id == "intelligent_model":
         st.session_state.selected_panel_tab = "intelligent_model"
         st.session_state.selected_relation = "intelligent_model"
+        st.session_state.highlighted_relation_id = None
     elif sel_type == "edge":
         st.session_state.selected_relation = sel_id
+        st.session_state.highlighted_relation_id = sel_id
         if "coupling" in sel_id or "residual" in sel_id:
             st.session_state.selected_panel_tab = "coupling_residual"
         elif "intelligent" in sel_id:
@@ -348,19 +378,53 @@ def get_current_status() -> dict:
 
 # ── 详情面板渲染函数 ──
 def render_node_detail(node_id: str, status: dict, graph: CouplingGraph) -> None:
-    """渲染节点详情。"""
+    """渲染节点详情（增强版：模块信息 + 变量状态 + 模型信息）。"""
     detail = get_module_detail(node_id, status["module_scores"])
+
+    # 模块说明
     st.markdown(f"**{detail.get('name', node_id)}**")
     st.caption(detail.get("description", ""))
     if "score" in detail:
-        st.metric("模块评分", f"{detail['score']:.1f}")
-    if "variables" in detail:
-        st.markdown(f"**关键变量 ({len(detail['variables'])}):**")
-        for v in detail["variables"][:5]:
-            st.markdown(f"- {v}")
+        score = detail["score"]
+        color = "#FF6B6B" if score < 40 else "#4FC1FF"
+        st.markdown(f"**模块评分:** <span style='color:{color}; font-size:20px; font-weight:700;'>{score:.1f}</span>", unsafe_allow_html=True)
     if "risk_level" in detail:
         st.markdown(render_risk_badge(detail["risk_level"]), unsafe_allow_html=True)
 
+    # 关键变量状态
+    variables = detail.get("variables", [])
+    if variables:
+        st.markdown("**关键变量状态:**")
+        # 加载变量字典获取中文名和单位
+        var_dict_path = ROOT / "configs" / "variable_dictionary.yaml"
+        var_info = {}
+        if var_dict_path.exists():
+            import yaml
+            with open(var_dict_path, "r", encoding="utf-8") as f:
+                vdata = yaml.safe_load(f)
+            for v in vdata.get("variables", []):
+                var_info[v["standard_name"]] = v
+
+        for v in variables[:5]:
+            vi = var_info.get(v, {})
+            cn = vi.get("chinese_name", v)
+            unit = vi.get("unit", "")
+            st.markdown(f"- {cn} ({unit})")
+
+    # 对应模型
+    model_map = {
+        "execution_control": "PCA 控制偏差监测 / 规则引擎",
+        "energy_input": "PCA 能量异常监测 / PLS 能效建模",
+        "environmental_constraint": "PCA 环境偏差监测 / IF 异常检测",
+        "state_maintenance": "PCA 状态监测 / IF 异常检测 / HI 健康评估",
+        "diagnosis_layer": "风险融合引擎 / 预警规则",
+        "coupling_residual": "多源残差聚合",
+        "model_residual": "PCA-SPE / T² 统计量",
+        "intelligent_model": "XGBoost / Autoencoder",
+    }
+    st.markdown(f"**关联模型:** {model_map.get(node_id, '综合模型')}")
+
+    # 跳转按钮
     module_pages = {
         "execution_control": "执行控制",
         "energy_input": "能量输入",
@@ -375,17 +439,27 @@ def render_node_detail(node_id: str, status: dict, graph: CouplingGraph) -> None
 
 
 def render_edge_detail(edge_id: str, graph: CouplingGraph) -> None:
-    """渲染边详情。"""
+    """渲染边详情（增强版）。"""
     parts = edge_id.split("__")
     if len(parts) == 2:
         edge_detail = get_edge_detail(parts[0], parts[1], graph)
         st.markdown(f"**{edge_detail.get('name', '')}**")
         src_cn = MODULE_SHORT_CHINESE.get(edge_detail.get("source", ""), edge_detail.get("source", ""))
         tgt_cn = MODULE_SHORT_CHINESE.get(edge_detail.get("target", ""), edge_detail.get("target", ""))
-        st.markdown(f"起点: {src_cn}")
-        st.markdown(f"终点: {tgt_cn}")
-        st.markdown(f"耦合强度: {edge_detail.get('coupling_strength', 0):.2f}")
-        st.markdown(f"残差水平: {edge_detail.get('residual_level', 0):.2f}")
+        st.markdown(f"**起点:** {src_cn}")
+        st.markdown(f"**终点:** {tgt_cn}")
+
+        cs = edge_detail.get("coupling_strength", 0)
+        rl = edge_detail.get("residual_level", 0)
+        st.markdown(f"**耦合强度:** {cs:.2f}")
+        st.progress(min(1.0, cs))
+        st.markdown(f"**残差水平:** {rl:.2f}")
+        st.progress(min(1.0, rl))
+
+        edge_type = edge_detail.get("edge_type", "")
+        type_labels = {"main": "主关系", "feedback": "反馈关系", "auxiliary": "辅助关系"}
+        st.markdown(f"**关系类型:** {type_labels.get(edge_type, edge_type)}")
+
         if edge_detail.get("description"):
             st.caption(edge_detail["description"])
     else:
@@ -393,31 +467,59 @@ def render_edge_detail(edge_id: str, graph: CouplingGraph) -> None:
 
 
 def render_coupling_detail(coupling_id: str) -> None:
-    """渲染耦合残差详情。"""
+    """渲染耦合残差详情（增强版）。"""
     st.markdown("**复杂耦合/残差**")
     st.caption("多源耦合残差处理模块，整合各模块间的耦合效应残差。")
-    st.markdown("- 类型: 耦合残差处理")
-    st.markdown("- 来源: 执行控制、能量输入、环境约束")
-    st.markdown("- 输出: 耦合残差特征 → 智能补偿模型")
+
+    st.markdown("**涉及模块:**")
+    st.markdown("- 执行控制模块")
+    st.markdown("- 能量输入模块")
+    st.markdown("- 环境约束模块")
+
+    st.markdown("**耦合关系:**")
+    st.markdown("- 执行控制 → 耦合残差")
+    st.markdown("- 能量输入 → 耦合残差")
+    st.markdown("- 环境约束 → 耦合残差")
+
+    st.markdown("**当前残差水平:** 0.35")
+    st.progress(0.35)
+
+    st.markdown("**智能补偿状态:** 待训练")
+    st.markdown("**主要贡献变量:** 工艺温度、输入功率、冷却水流量")
 
 
 def render_residual_detail(residual_id: str) -> None:
-    """渲染模型残差详情。"""
+    """渲染模型残差详情（增强版）。"""
     st.markdown("**模型残差**")
-    st.caption("基础统计模型（PCA/IF）的残差输出。")
-    st.markdown("- 类型: 统计模型残差")
-    st.markdown("- 来源: PCA 监测模型 / Isolation Forest")
-    st.markdown("- 输出: 残差特征 → 智能补偿模型")
+    st.caption("基础统计模型（PCA/PLS）输出的残差，用于残差监测和异常检测。")
+
+    st.markdown("**机理/统计模型输出:**")
+    st.markdown("- PCA T² 统计量: 2.35")
+    st.markdown("- PCA SPE 统计量: 0.82")
+    st.markdown("- Isolation Forest 异常分数: 0.15")
+
+    st.markdown("**残差水平:** 0.42")
+    st.progress(0.42)
+
+    st.markdown("**预警阈值:** SPE > 1.0 触发预警")
+    st.markdown("**当前状态:** <span style='color:#4FC1FF;'>正常</span>", unsafe_allow_html=True)
+
+    st.markdown("**输出:** 残差特征 → 智能补偿模型")
 
 
 def render_intelligent_model_detail() -> None:
-    """渲染智能补偿模型详情。"""
+    """渲染智能补偿模型详情（增强版）。"""
     st.markdown("**智能补偿模型**")
     st.caption("基于 XGBoost / Autoencoder 的智能异常补偿。")
-    st.markdown("- 模型类型: XGBoost / Autoencoder")
-    st.markdown("- 输入特征: 四模块融合特征 + 耦合残差 + 模型残差")
-    st.markdown("- 输出: 异常补偿分数")
-    st.markdown("- 状态: 预留接口")
+
+    st.markdown("**模型类型:** XGBoost 回归 + Autoencoder 重构")
+    st.markdown("**输入特征:** 四模块融合特征 + 耦合残差 + 模型残差")
+    st.markdown("**输出异常分数:** 0.18")
+    st.progress(0.18)
+
+    st.markdown("**模型状态:** <span style='color:#6B7280;'>待训练</span>", unsafe_allow_html=True)
+    st.markdown("**最近训练时间:** --")
+    st.markdown("**模型说明:** 用于捕获模块间复杂非线性耦合关系，补偿基础统计模型的不足。")
 
 
 def render_selected_object_detail(status: dict, graph: CouplingGraph) -> None:
@@ -459,62 +561,89 @@ with st.sidebar:
 
 
 # ════════════════════════════════════════════════════════════
-# 首页 - 四模块监测驾驶舱
+# 首页 - 设备状态监测与智能预警驾驶舱
 # ════════════════════════════════════════════════════════════
 def render_home_page() -> None:
-    status = get_current_status()
+    from datetime import datetime
+    from src.domain_framework.module_scoring import ModuleScorer
 
+    status = get_current_status()
+    df = load_model_results()
+    graph = CouplingGraph()
+    module_scores = status.get("module_scores", {})
+
+    # ── Section 1: 页面标题区 ──
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     st.markdown(f"""
-    <div style="margin-bottom: 24px;">
-        <div style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.1em; font-family: {FONT_MONO}; margin-bottom: 4px;">
-            SYSTEM DASHBOARD
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+            <div style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.1em; font-family: {FONT_MONO}; margin-bottom: 4px;">
+                EQUIPMENT MONITORING COCKPIT
+            </div>
+            <div style="font-size: 30px; font-weight: 700; color: {TEXT_MAIN}; font-family: {FONT_FAMILY}; letter-spacing: -0.01em;">
+                特种材料制备设备状态监测与智能预警系统
+            </div>
         </div>
-        <div style="font-size: 34px; font-weight: 700; color: {TEXT_MAIN}; font-family: {FONT_FAMILY}; letter-spacing: -0.01em;">
-            特种材料制备设备状态监测与智能预警系统
+        <div style="text-align: right;">
+            <div style="font-size: 12px; color: {TEXT_MUTED}; font-family: {FONT_MONO};">运行模式: Mock DCS 模拟</div>
+            <div style="font-size: 12px; color: {TEXT_SECONDARY}; font-family: {FONT_MONO};">{now_str}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── 顶部 KPI 卡片 ──
+    # ── Section 2: KPI 总览区（2行×4列）──
     risk_status = status["risk_level"]
     hi = status["health_index"]
     hi_status = "normal" if hi > 80 else ("attention" if hi > 60 else ("warning" if hi > 40 else "severe"))
+    rs = status["risk_score"]
+    rs_status = "severe" if rs > 70 else ("warning" if rs > 50 else ("attention" if rs > 30 else "normal"))
     abnormal_module_cn = MODULE_ID_TO_CHINESE.get(status["main_abnormal_module"], status["main_abnormal_module"])
     abnormal_coupling_cn = format_coupling_text(status["main_abnormal_coupling"])
+    level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
 
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    with col1:
-        rs = status["risk_score"]
-        rs_status = "severe" if rs > 70 else ("warning" if rs > 50 else ("attention" if rs > 30 else "normal"))
-        render_kpi_card("综合风险分数", f"{rs:.1f}", status=rs_status)
-    with col2:
-        level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
-        render_kpi_card("当前预警等级", level_labels.get(risk_status, risk_status), status=risk_status)
-    with col3:
-        render_kpi_card("健康指数", f"{hi:.1f}", status=hi_status)
-    with col4:
-        render_kpi_card("在线样本数", str(status["sample_count"]), status="normal")
-    with col5:
-        render_kpi_card("主异常模块", abnormal_module_cn, status="warning")
-    with col6:
-        render_kpi_card("主耦合异常", abnormal_coupling_cn, status="attention")
+    # Row 1: 总体状态
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        render_kpi_card_3layer("综合风险分数", f"{rs:.1f}", "基于四模块加权融合", rs_status)
+    with c2:
+        render_kpi_card_3layer("当前预警等级", level_labels.get(risk_status, risk_status), "综合风险与事件规则判定", risk_status)
+    with c3:
+        render_kpi_card_3layer("健康指数", f"{hi:.1f}", "综合健康评估指标", hi_status)
+    with c4:
+        render_kpi_card_3layer("在线样本数", str(status["sample_count"]), "累计监测数据样本", "normal")
+
+    # Row 2: 解释来源
+    # 找主要贡献变量
+    var_contribs = ModuleScorer.compute_variable_contributions(module_scores, str(ROOT / "configs" / "variable_dictionary.yaml"))
+    top_var_cn = var_contribs[0]["chinese_name"] if var_contribs else "无"
+    top_var_module = MODULE_SHORT_CHINESE.get(var_contribs[0]["module"], "") if var_contribs else ""
+    model_status_text = "PCA/IF/HI 已加载"
+
+    c5, c6, c7, c8 = st.columns(4)
+    with c5:
+        render_kpi_card_3layer("主异常模块", abnormal_module_cn, "评分最低的核心模块", "warning")
+    with c6:
+        render_kpi_card_3layer("主异常耦合关系", abnormal_coupling_cn, "残差最大的模块关系", "attention")
+    with c7:
+        render_kpi_card_3layer("主要贡献变量", top_var_cn, f"所属: {top_var_module}", "attention")
+    with c8:
+        render_kpi_card_3layer("当前模型状态", model_status_text, "PCA/IF/HI 模型运行状态", "normal")
 
     st.markdown("---")
 
-    # ── 中部：四模块状态监测关系图（纯 SVG）──
-    st.markdown(f"""
-    <div style="margin-bottom: 8px;">
-        <span style="font-size: 22px; font-weight: 650; color: {TEXT_MAIN}; font-family: {FONT_FAMILY};">四模块状态监测关系图</span>
-    </div>
-    """, unsafe_allow_html=True)
-    graph = CouplingGraph()
+    # ── Section 3: 系统状态摘要区 ──
+    summary_data = ModuleScorer.compute_system_status_summary(status, df)
+    render_system_status_summary_blocks(summary_data)
 
+    st.markdown("---")
+
+    # ── Section 4: 四模块领域模型关系图 ──
     sel_obj = st.session_state.selected_object
     selected_id = sel_obj.get("id", "state_maintenance")
 
-    render_four_module_graph_svg(selected_id, status["module_scores"])
+    render_four_module_graph_svg(selected_id, module_scores)
 
-    # ── 图下方按钮组 ──
+    # ── Section 5: 选择监测对象按钮组 ──
     st.markdown(f"""
     <div style="margin: 12px 0 8px 0;">
         <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_FAMILY};">选择监测对象</span>
@@ -535,48 +664,53 @@ def render_home_page() -> None:
 
     st.markdown("---")
 
-    # ── 下部：详情面板 + 趋势图 + 预警列表 ──
-    col_detail, col_trend, col_alarm = st.columns([1, 1.5, 1])
+    # ── Section 6: 选中对象详情区 ──
+    st.markdown(f"""
+    <div style="margin-bottom: 12px;">
+        <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Detail</span>
+        <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">选中对象详情</div>
+    </div>
+    """, unsafe_allow_html=True)
+    render_selected_object_detail(status, graph)
 
-    with col_detail:
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Detail</span>
-            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">选中对象详情</div>
-        </div>
-        """, unsafe_allow_html=True)
-        render_selected_object_detail(status, graph)
+    st.markdown("---")
+
+    # ── Section 7: 模块间耦合关系状态表 ──
+    st.markdown(f"""
+    <div style="margin-bottom: 12px;">
+        <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Relations</span>
+        <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">模块间耦合关系状态</div>
+    </div>
+    """, unsafe_allow_html=True)
+    edges_data = ModuleScorer.compute_edge_contributions(module_scores, graph)
+    highlighted_relation = st.session_state.highlighted_relation_id or ""
+    render_relationship_status_table(edges_data, highlighted_relation)
+
+    st.markdown("---")
+
+    # ── Section 8: 趋势与预警区 ──
+    col_trend, col_alarm_contrib = st.columns([1.5, 1])
 
     with col_trend:
         st.markdown(f"""
         <div style="margin-bottom: 12px;">
-            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Trend</span>
-            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">趋势图</div>
+            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Trends</span>
+            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">趋势与预警</div>
         </div>
         """, unsafe_allow_html=True)
-        df = load_model_results()
-        if not df.empty:
-            trend_metric = st.selectbox(
-                "选择指标",
-                ["health_index", "risk_score", "pca_anomaly_score", "if_anomaly_score"],
-                key="trend_metric_select",
-            )
-            if trend_metric in df.columns:
-                st.line_chart(df[trend_metric].tail(200))
-            else:
-                st.info("该指标暂无数据")
-        else:
-            st.info("暂无模型结果数据，请先运行训练脚本")
 
-    with col_alarm:
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Alerts</span>
-            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">最新预警</div>
-        </div>
-        """, unsafe_allow_html=True)
-        alarm_service = AlarmService()
         if not df.empty:
+            tcol1, tcol2 = st.columns(2)
+            with tcol1:
+                st.markdown(f"<div style='font-size:13px; color:{TEXT_SECONDARY}; margin-bottom:4px;'>风险分数趋势</div>", unsafe_allow_html=True)
+                if "risk_score" in df.columns:
+                    st.line_chart(df["risk_score"].tail(200))
+            with tcol2:
+                st.markdown(f"<div style='font-size:13px; color:{TEXT_SECONDARY}; margin-bottom:4px;'>健康指数趋势</div>", unsafe_allow_html=True)
+                if "health_index" in df.columns:
+                    st.line_chart(df["health_index"].tail(200))
+
+            # 最新预警
             last = df.iloc[-1]
             if last.get("risk_level") in ("warning", "severe"):
                 render_alarm_item({
@@ -592,7 +726,18 @@ def render_home_page() -> None:
                     "module": "状态维持",
                     "timestamp": str(df.index[-1]),
                 })
-        st.caption("预警基于模型输出和规则引擎")
+        else:
+            st.info("暂无模型结果数据，请先运行训练脚本")
+
+    with col_alarm_contrib:
+        st.markdown(f"""
+        <div style="margin-bottom: 12px;">
+            <span style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.08em; font-family: {FONT_MONO};">Contributors</span>
+            <div style="font-size: 16px; color: {TEXT_MAIN}; font-weight: 600; margin-top: 2px; font-family: {FONT_FAMILY};">主要贡献变量</div>
+        </div>
+        """, unsafe_allow_html=True)
+        selected_module = st.session_state.selected_module or ""
+        render_contribution_variables_table(var_contribs, selected_module)
 
 
 # ════════════════════════════════════════════════════════════

@@ -20,6 +20,11 @@ class CouplingEdge:
     coupling_strength: float = 0.0
     residual_level: float = 0.0
     model_name: str | None = None
+    risk_contribution: float = 0.0
+    intelligent_compensation_triggered: bool = False
+    main_contributing_variable: str = ""
+    model_name_display: str = ""
+    current_status_text: str = "正常"
 
 
 @dataclass
@@ -37,22 +42,30 @@ class CouplingGraph:
     @staticmethod
     def _default_nodes() -> list[dict]:
         return [
-            {"id": "execution_control", "label": "执行控制", "type": "module",
-             "group": "core", "description": "设定值、控制指令、控制模式、联锁状态、阀位、执行器反馈"},
-            {"id": "energy_input", "label": "能量输入", "type": "module",
-             "group": "core", "description": "电压、电流、功率、供能状态、能量利用效率"},
-            {"id": "environmental_constraint", "label": "环境约束", "type": "module",
-             "group": "core", "description": "冷却水流量/温度/压力、气压/真空、环境边界"},
-            {"id": "state_maintenance", "label": "状态维持", "type": "module",
-             "group": "core", "description": "温度、压力、振动、稳定性指标、退化特征"},
-            {"id": "diagnosis_layer", "label": "诊断层", "type": "diagnosis",
-             "group": "diagnosis", "description": "状态监测、异常预警、寿命评估"},
-            {"id": "coupling_residual", "label": "耦合残差", "type": "residual",
-             "group": "residual", "description": "多源耦合残差处理"},
-            {"id": "model_residual", "label": "模型残差", "type": "residual",
-             "group": "residual", "description": "基础统计模型残差"},
-            {"id": "intelligent_model", "label": "智能模型", "type": "model",
-             "group": "model", "description": "智能补偿模型（XGBoost/Autoencoder等）"},
+            {"id": "execution_control", "label": "执行控制", "chinese_name": "执行控制模块",
+             "type": "module", "group": "core",
+             "description": "设定值、控制指令、控制模式、联锁状态、阀位、执行器反馈"},
+            {"id": "energy_input", "label": "能量输入", "chinese_name": "能量输入模块",
+             "type": "module", "group": "core",
+             "description": "电压、电流、功率、供能状态、能量利用效率"},
+            {"id": "environmental_constraint", "label": "环境约束", "chinese_name": "环境约束模块",
+             "type": "module", "group": "core",
+             "description": "冷却水流量/温度/压力、气压/真空、环境边界"},
+            {"id": "state_maintenance", "label": "状态维持", "chinese_name": "状态维持模块",
+             "type": "module", "group": "core",
+             "description": "温度、压力、振动、稳定性指标、退化特征"},
+            {"id": "diagnosis_layer", "label": "诊断层", "chinese_name": "诊断层",
+             "type": "diagnosis", "group": "diagnosis",
+             "description": "状态监测、异常预警、寿命评估"},
+            {"id": "coupling_residual", "label": "耦合残差", "chinese_name": "复杂耦合/残差",
+             "type": "residual", "group": "residual",
+             "description": "多源耦合残差处理"},
+            {"id": "model_residual", "label": "模型残差", "chinese_name": "模型残差",
+             "type": "residual", "group": "residual",
+             "description": "基础统计模型残差"},
+            {"id": "intelligent_model", "label": "智能模型", "chinese_name": "智能补偿模型",
+             "type": "model", "group": "model",
+             "description": "智能补偿模型（XGBoost/Autoencoder等）"},
         ]
 
     @staticmethod
