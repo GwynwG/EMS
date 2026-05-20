@@ -42,47 +42,65 @@ _MODULE_CN = {
     "state_maintenance": "状态维持",
 }
 
-# ── 变量名中文映射 ──
+# ── 变量名中文映射（覆盖实际 CSV 中的变量名）──
 _VAR_NAME_CN = {
-    "setpoint_temperature": "设定温度",
-    "valve_position": "阀位",
+    # 执行控制
     "control_mode": "控制模式",
-    "temperature": "温度",
-    "pressure": "压力",
-    "vibration": "振动",
-    "power": "功率",
+    "setpoint_temperature": "温度设定值",
+    "setpoint_pressure": "压力设定值",
+    "valve_position_main": "主阀阀位",
+    "valve_position_cooling": "冷却阀阀位",
+    "interlock_status": "联锁状态",
+    "actuator_feedback": "执行器反馈",
+    "valve_position": "阀位",
+    # 能量输入
+    "supply_voltage": "供电电压",
+    "supply_current": "供电电流",
+    "active_power": "有功功率",
+    "reactive_power": "无功功率",
+    "power_factor": "功率因数",
+    "energy_efficiency": "能量利用效率",
+    "power_frequency": "电源频率",
     "voltage": "电压",
     "current": "电流",
-    "flow_rate": "流量",
-    "level": "液位",
-    "speed": "转速",
-    "frequency": "频率",
-    "humidity": "湿度",
-    "concentration": "浓度",
-    "ph_value": "pH值",
-    "density": "密度",
-    "viscosity": "粘度",
-    "torque": "扭矩",
-    "displacement": "位移",
-    "acceleration": "加速度",
-    "rotation": "转速",
-    "input_power": "输入功率",
-    "output_power": "输出功率",
-    "energy_consumption": "能耗",
-    "efficiency": "效率",
-    "ambient_temperature": "环境温度",
+    "power": "功率",
+    # 环境约束
+    "cooling_water_flow": "冷却水流量",
+    "cooling_water_temp_in": "冷却水进水温度",
+    "cooling_water_temp_out": "冷却水出水温度",
+    "cooling_water_pressure": "冷却水压力",
+    "vacuum_pressure": "真空度",
+    "ambient_pressure": "环境气压",
     "ambient_humidity": "环境湿度",
     "cooling_water_temp": "冷却水温度",
-    "cooling_water_flow": "冷却水流量",
-    "vibration_x": "X轴振动",
-    "vibration_y": "Y轴振动",
-    "vibration_z": "Z轴振动",
-    "bearing_temp": "轴承温度",
-    "motor_current": "电机电流",
-    "motor_voltage": "电机电压",
-    "oil_temperature": "油温",
-    "oil_pressure": "油压",
-    "oil_level": "油位",
+    # 状态维持
+    "furnace_temp_1": "炉温1区",
+    "furnace_temp_2": "炉温2区",
+    "furnace_temp_3": "炉温3区",
+    "furnace_pressure": "炉内压力",
+    "vibration_x": "X向振动",
+    "vibration_y": "Y向振动",
+    "temp_stability_index": "温度稳定性指标",
+    "degradation_index": "退化指标",
+    "vibration": "振动",
+    "temperature": "温度",
+    "pressure": "压力",
+    # 模型输出
+    "pca_anomaly_score": "PCA异常分数",
+    "pca_t2": "T²统计量",
+    "pca_spe": "SPE残差统计量",
+    "if_anomaly_score": "IF异常分数",
+    "health_index": "健康指数",
+    "risk_score": "风险分数",
+    "risk_level": "风险等级",
+    # 通用
+    "flow_rate": "流量",
+    "humidity": "湿度",
+    "speed": "转速",
+    "frequency": "频率",
+    "efficiency": "效率",
+    "degradation_index": "退化指标",
+    "stability_index": "稳定性指标",
 }
 
 # ── 后缀中文映射 ──
@@ -426,3 +444,135 @@ def _render_module_score_trend(df: pd.DataFrame) -> None:
         title="模块评分趋势",
         y_label="评分",
     )
+
+
+# ════════════════════════════════════════════════════════════
+# 趋势图组系统 — 按页面自动展开
+# ════════════════════════════════════════════════════════════
+
+def select_columns_by_keywords(df: pd.DataFrame, keywords: list[str]) -> list[str]:
+    """从 df 列名中匹配包含关键词的列。"""
+    matched = []
+    for col in df.columns:
+        col_lower = col.lower()
+        for kw in keywords:
+            if kw.lower() in col_lower:
+                matched.append(col)
+                break
+    return matched
+
+
+def get_page_trend_groups(page_name: str, module_name: str | None = None) -> list[dict]:
+    """返回指定页面的趋势图组定义。"""
+    if page_name == "首页":
+        return [
+            {"title": "综合风险分数趋势", "keywords": ["risk_score"], "desc": "系统总体异常风险变化"},
+            {"title": "健康指数趋势", "keywords": ["health_index"], "desc": "设备综合健康状态"},
+            {"title": "异常分数趋势", "keywords": ["pca_anomaly_score", "if_anomaly_score", "pca_t2", "pca_spe"], "desc": "PCA/IF 模型异常检测统计量"},
+        ]
+    if page_name == "执行控制":
+        return [
+            {"title": "设定值与控制指令趋势", "keywords": ["setpoint", "control_command"], "desc": "控制回路设定值与指令"},
+            {"title": "控制模式趋势", "keywords": ["control_mode", "interlock"], "desc": "控制模式与联锁状态"},
+            {"title": "执行器反馈趋势", "keywords": ["valve_position", "actuator", "feedback"], "desc": "执行器阀位与反馈信号"},
+        ]
+    if page_name == "能量输入":
+        return [
+            {"title": "电压电流趋势", "keywords": ["voltage", "current"], "desc": "供电电压与电流"},
+            {"title": "功率与能量趋势", "keywords": ["active_power", "reactive_power", "power_factor", "energy_efficiency"], "desc": "有功/无功功率与能量效率"},
+            {"title": "电源频率趋势", "keywords": ["power_frequency", "frequency"], "desc": "电源频率变化"},
+        ]
+    if page_name == "环境约束":
+        return [
+            {"title": "冷却条件趋势", "keywords": ["cooling_water"], "desc": "冷却水流量/温度/压力"},
+            {"title": "压力与真空趋势", "keywords": ["vacuum_pressure", "ambient_pressure"], "desc": "环境压力与真空度"},
+            {"title": "环境湿度趋势", "keywords": ["ambient_humidity", "humidity"], "desc": "环境湿度变化"},
+        ]
+    if page_name == "状态维持":
+        return [
+            {"title": "温度状态趋势", "keywords": ["furnace_temp", "temperature"], "desc": "炉温各区温度状态"},
+            {"title": "压力状态趋势", "keywords": ["furnace_pressure", "pressure"], "desc": "炉内压力状态"},
+            {"title": "振动状态趋势", "keywords": ["vibration"], "desc": "各方向振动状态"},
+            {"title": "稳定性与退化趋势", "keywords": ["stability", "degradation"], "desc": "温度稳定性与退化指标"},
+        ]
+    if page_name == "特征分析" and module_name:
+        return [
+            {"title": "原始变量趋势", "category": "原始变量", "desc": "各变量原始值"},
+            {"title": "统计特征趋势", "category": "统计特征", "desc": "均值/标准差/极差等"},
+            {"title": "动态变化特征趋势", "category": "动态变化", "desc": "变化率/斜率/滞后项等"},
+            {"title": "事件模式特征趋势", "category": "事件模式", "desc": "跳变/超限/模式切换等"},
+            {"title": "异常健康特征趋势", "category": "异常健康", "desc": "异常分数/残差等"},
+        ]
+    if page_name == "模型训练":
+        return [
+            {"title": "PCA 统计量趋势", "keywords": ["pca_t2", "pca_spe", "pca_anomaly"], "desc": "PCA 模型 T² 和 SPE 统计量"},
+            {"title": "Isolation Forest 异常分数趋势", "keywords": ["if_anomaly"], "desc": "IF 模型异常分数"},
+            {"title": "健康指数与风险分数趋势", "keywords": ["health_index", "risk_score"], "desc": "综合评估结果"},
+        ]
+    if page_name == "在线监测":
+        return [
+            {"title": "实时风险分数趋势", "keywords": ["risk_score"], "desc": "实时综合风险"},
+            {"title": "实时健康指数趋势", "keywords": ["health_index"], "desc": "实时健康状态"},
+        ]
+    if page_name == "预警记录":
+        return [
+            {"title": "风险等级趋势", "keywords": ["risk_score", "risk_level"], "desc": "风险分数与等级变化"},
+            {"title": "异常分数趋势", "keywords": ["pca_anomaly_score", "if_anomaly_score"], "desc": "模型异常分数变化"},
+        ]
+    if page_name == "健康趋势":
+        return [
+            {"title": "健康指数趋势", "keywords": ["health_index"], "desc": "综合健康指数变化"},
+            {"title": "退化指标趋势", "keywords": ["degradation"], "desc": "设备退化趋势"},
+            {"title": "稳定性指标趋势", "keywords": ["stability"], "desc": "系统稳定性变化"},
+        ]
+    return []
+
+
+def render_all_trend_groups(
+    page_name: str,
+    df: pd.DataFrame,
+    module_name: str | None = None,
+    tail_n: int = 200,
+) -> None:
+    """按页面类型自动渲染所有趋势图组，无需用户手动选择。"""
+    groups = get_page_trend_groups(page_name, module_name)
+    if not groups:
+        return
+
+    plot_df = df.tail(tail_n) if tail_n else df
+
+    for group in groups:
+        st.markdown(f"### {group['title']}")
+
+        if "category" in group:
+            # 特征分析页面：按分类匹配
+            if module_name:
+                module_cols = [c for c in plot_df.columns if c.startswith(f"{module_name}__")]
+                categories = classify_feature_columns(module_cols, module_name)
+                cols = categories.get(group["category"], [])
+            else:
+                cols = []
+        else:
+            cols = select_columns_by_keywords(plot_df, group["keywords"])
+
+        if not cols:
+            st.caption("当前数据中未找到相关变量")
+            continue
+
+        # 限制曲线数量
+        cols = get_top_features_by_variance(plot_df, cols, top_k=8)
+
+        # 构建中文名映射
+        display_names = {c: simplify_feature_name(c, module_name or "") for c in cols}
+
+        render_multi_line_chart(
+            plot_df,
+            columns=cols,
+            title=group["title"],
+            display_names=display_names,
+        )
+
+        if group.get("desc"):
+            st.caption(group["desc"])
+        if len(cols) >= 8:
+            st.caption("仅展示前 8 个代表变量")

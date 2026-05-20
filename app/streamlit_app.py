@@ -45,9 +45,8 @@ from src.visualization.plotly_charts import (
     render_single_line_chart,
     render_multi_line_chart,
     render_trend_tab_content,
-    render_category_chart,
-    classify_feature_columns,
-    get_top_features_by_variance,
+    render_all_trend_groups,
+    simplify_feature_name,
 )
 from src.visualization.theme import (
     BG_MAIN,
@@ -816,30 +815,15 @@ def render_module_page(module_type: ModuleType) -> None:
         module_cols = [c for c in df.columns if c.startswith(f"{module_type.value}__")]
         if module_cols:
             st.dataframe(df[module_cols].tail(50), width="stretch")
-
-            # 特征分类选择
-            categories = classify_feature_columns(module_cols, module_type.value)
-            cat_names = [cat for cat, cols in categories.items() if cols]
-            selected_cat = st.selectbox("特征类别", cat_names, key=f"cat_{module_type.value}")
-
-            if selected_cat:
-                cat_cols = categories[selected_cat]
-                default_cols = get_top_features_by_variance(df[cat_cols].tail(200), cat_cols, top_k=6)
-                selected_cols = st.multiselect(
-                    "选择特征变量",
-                    options=cat_cols,
-                    default=default_cols,
-                    key=f"features_{module_type.value}",
-                    format_func=lambda c: c.split("__", 1)[1] if "__" in c else c,
-                )
-                if selected_cols:
-                    render_category_chart(
-                        df[selected_cols].tail(200),
-                        selected_cols,
-                        selected_cat,
-                        module_type.value,
-                        height=380,
-                    )
+            # 模块页面名映射
+            _module_page_names = {
+                "execution_control": "执行控制",
+                "energy_input": "能量输入",
+                "environmental_constraint": "环境约束",
+                "state_maintenance": "状态维持",
+            }
+            page_name = _module_page_names.get(module_type.value, module_type.value)
+            render_all_trend_groups(page_name, df[module_cols].tail(200), module_name=module_type.value, tail_n=0)
         else:
             st.info("该模块暂无特征数据")
 
@@ -905,30 +889,7 @@ def render_feature_page() -> None:
             cols = [c for c in df.columns if c.startswith(f"{mod}__")]
             if cols:
                 st.dataframe(df[cols].tail(100), width="stretch")
-
-                # 特征分类选择
-                categories = classify_feature_columns(cols, mod)
-                cat_names = [cat for cat, c_list in categories.items() if c_list]
-                selected_cat = st.selectbox("特征类别", cat_names, key=f"feat_cat_{mod}")
-
-                if selected_cat:
-                    cat_cols = categories[selected_cat]
-                    default_cols = get_top_features_by_variance(df[cat_cols].tail(200), cat_cols, top_k=6)
-                    selected_cols = st.multiselect(
-                        "选择特征变量",
-                        options=cat_cols,
-                        default=default_cols,
-                        key=f"feat_sel_{mod}",
-                        format_func=lambda c: c.split("__", 1)[1] if "__" in c else c,
-                    )
-                    if selected_cols:
-                        render_category_chart(
-                            df[selected_cols].tail(200),
-                            selected_cols,
-                            selected_cat,
-                            mod,
-                            height=380,
-                        )
+                render_all_trend_groups("特征分析", df[cols].tail(200), module_name=mod, tail_n=0)
             else:
                 st.info(f"该模块暂无特征")
 
@@ -944,27 +905,7 @@ def render_model_page() -> None:
         return
 
     st.info(f"模型结果: {len(df)} 条")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("### PCA 监测模型")
-        if "pca_anomaly_score" in df.columns:
-            render_single_line_chart(df["pca_anomaly_score"].tail(200), "PCA 异常分数", RISK_RED, height=300)
-        if "pca_t2" in df.columns:
-            render_single_line_chart(df["pca_t2"].tail(200), "PCA T2 统计量", TEXT_SECONDARY, height=300)
-
-    with col2:
-        st.markdown("### Isolation Forest")
-        if "if_anomaly_score" in df.columns:
-            render_single_line_chart(df["if_anomaly_score"].tail(200), "IF 异常分数", ACCENT_BLUE, height=300)
-
-    st.markdown("### 健康指数趋势")
-    if "health_index" in df.columns:
-        render_single_line_chart(df["health_index"].tail(200), "健康指数", ACCENT_BLUE, y_label="健康指数")
-
-    st.markdown("### 风险分数趋势")
-    if "risk_score" in df.columns:
-        render_single_line_chart(df["risk_score"].tail(200), "风险分数", RISK_RED, y_label="风险分数")
+    render_all_trend_groups("模型训练", df.tail(200))
 
 
 # ════════════════════════════════════════════════════════════
@@ -1002,6 +943,11 @@ def render_online_page() -> None:
         score = status["module_scores"].get(mod, 100.0)
         render_module_score_bar(mod, score, name)
 
+    st.markdown("---")
+    df = load_model_results()
+    if not df.empty:
+        render_all_trend_groups("在线监测", df.tail(200))
+
 
 # ════════════════════════════════════════════════════════════
 # 预警记录页面
@@ -1026,6 +972,9 @@ def render_alarm_page() -> None:
         else:
             st.success("暂无预警记录，设备状态正常。")
 
+    st.markdown("---")
+    render_all_trend_groups("预警记录", df.tail(200))
+
 
 # ════════════════════════════════════════════════════════════
 # 健康趋势页面
@@ -1038,9 +987,6 @@ def render_health_trend_page() -> None:
         return
 
     if "health_index" in df.columns:
-        st.markdown("### 健康指数历史趋势")
-        render_single_line_chart(df["health_index"], "健康指数历史趋势", ACCENT_BLUE, y_label="健康指数")
-
         col1, col2, col3 = st.columns(3)
         with col1:
             render_kpi_card("平均健康指数", f"{df['health_index'].mean():.1f}", status="normal")
@@ -1049,17 +995,7 @@ def render_health_trend_page() -> None:
         with col3:
             render_kpi_card("当前健康指数", f"{df['health_index'].iloc[-1]:.1f}", status="normal")
 
-    st.markdown("### 模块评分趋势")
-    module_scores_data = {}
-    for mod in ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]:
-        cols = [c for c in df.columns if c.startswith(f"{mod}__")]
-        if cols:
-            module_scores_data[mod] = df[cols].apply(
-                lambda row: ModuleScorer.compute_module_score(row), axis=1
-            )
-    if module_scores_data:
-        scores_df = pd.DataFrame(module_scores_data)
-        render_multi_line_chart(scores_df, columns=list(scores_df.columns), title="模块评分趋势")
+    render_all_trend_groups("健康趋势", df)
 
 
 # ════════════════════════════════════════════════════════════
