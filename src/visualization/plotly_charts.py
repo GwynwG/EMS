@@ -539,7 +539,7 @@ def render_all_trend_groups(
     if not groups:
         return
 
-    plot_df = df.tail(tail_n) if tail_n else df
+    plot_df = df if tail_n == 0 else df.tail(tail_n)
 
     for group in groups:
         st.markdown(f"### {group['title']}")
