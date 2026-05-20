@@ -94,7 +94,7 @@ def render_single_line_chart(
     fig.update_layout(**_get_base_layout(title, height))
     if y_label:
         fig.update_yaxes(title_text=y_label)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_multi_line_chart(
@@ -128,7 +128,7 @@ def render_multi_line_chart(
     fig.update_layout(**_get_base_layout(title, height))
     if y_label:
         fig.update_yaxes(title_text=y_label)
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_trend_tab_content(df: pd.DataFrame) -> None:

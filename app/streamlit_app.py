@@ -747,7 +747,7 @@ def render_home_page() -> None:
                 if not alarm_df.empty:
                     st.info(f"共 {len(alarm_df)} 条预警记录")
                     display_cols = [c for c in ["risk_score", "risk_level", "health_index", "pca_anomaly_score"] if c in alarm_df.columns]
-                    st.dataframe(alarm_df[display_cols].tail(50), use_container_width=True, hide_index=True)
+                    st.dataframe(alarm_df[display_cols].tail(50), width="stretch", hide_index=True)
                 else:
                     st.success("暂无预警记录，设备状态正常。")
             else:

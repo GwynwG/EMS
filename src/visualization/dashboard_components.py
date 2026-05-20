@@ -473,7 +473,7 @@ def render_contribution_dataframe(variables: list[dict], selected_module: str = 
 
     st.dataframe(
         df,
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=column_config,
     )
