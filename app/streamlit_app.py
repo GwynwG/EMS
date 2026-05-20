@@ -45,6 +45,9 @@ from src.visualization.plotly_charts import (
     render_single_line_chart,
     render_multi_line_chart,
     render_trend_tab_content,
+    render_category_chart,
+    classify_feature_columns,
+    get_top_features_by_variance,
 )
 from src.visualization.theme import (
     BG_MAIN,
@@ -190,20 +193,33 @@ hr {{
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {{
-    background: {BG_SIDEBAR};
-    border-radius: 8px;
-    padding: 4px;
-    gap: 2px;
+    background: #2A2D33;
+    border-radius: 10px;
+    padding: 6px;
+    gap: 4px;
+    border: 1px solid #3A3F46;
 }}
 .stTabs [data-baseweb="tab"] {{
     background: transparent !important;
-    color: {TEXT_SECONDARY} !important;
-    border-radius: 6px;
-    font-family: {FONT_FAMILY};
+    color: #A7B0BD !important;
+    border-radius: 8px;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    padding: 10px 20px !important;
+    min-height: 44px !important;
 }}
 .stTabs [aria-selected="true"] {{
     background: #333842 !important;
-    color: {TEXT_MAIN} !important;
+    color: #F1F5F9 !important;
+    border-bottom: 3px solid #4FC1FF !important;
+    box-shadow: 0 2px 8px rgba(79,193,255,0.15);
+}}
+.stTabs [data-baseweb="tab-highlight"] {{
+    background-color: #4FC1FF !important;
+}}
+.stTabs [data-baseweb="tab-border"] {{
+    background-color: transparent !important;
 }}
 
 /* ── Metric ── */
@@ -786,13 +802,37 @@ def render_module_page(module_type: ModuleType) -> None:
         var_df = pd.DataFrame(var_list)
         st.dataframe(var_df[["standard_name", "chinese_name", "unit", "raw_tag", "data_type", "sampling_rate"]], width="stretch")
 
-    st.markdown("### 模块特征数据")
+    st.markdown("### 模块特征趋势分析")
+    st.caption(f"当前模块：{meta.chinese_name}")
     df = load_fused_features()
     if not df.empty:
         module_cols = [c for c in df.columns if c.startswith(f"{module_type.value}__")]
         if module_cols:
             st.dataframe(df[module_cols].tail(50), width="stretch")
-            render_multi_line_chart(df[module_cols].tail(200), columns=module_cols, title="模块特征趋势", height=350)
+
+            # 特征分类选择
+            categories = classify_feature_columns(module_cols, module_type.value)
+            cat_names = [cat for cat, cols in categories.items() if cols]
+            selected_cat = st.selectbox("特征类别", cat_names, key=f"cat_{module_type.value}")
+
+            if selected_cat:
+                cat_cols = categories[selected_cat]
+                default_cols = get_top_features_by_variance(df[cat_cols].tail(200), cat_cols, top_k=6)
+                selected_cols = st.multiselect(
+                    "选择特征变量",
+                    options=cat_cols,
+                    default=default_cols,
+                    key=f"features_{module_type.value}",
+                    format_func=lambda c: c.split("__", 1)[1] if "__" in c else c,
+                )
+                if selected_cols:
+                    render_category_chart(
+                        df[selected_cols].tail(200),
+                        selected_cols,
+                        selected_cat,
+                        module_type.value,
+                        height=380,
+                    )
         else:
             st.info("该模块暂无特征数据")
 
@@ -858,7 +898,30 @@ def render_feature_page() -> None:
             cols = [c for c in df.columns if c.startswith(f"{mod}__")]
             if cols:
                 st.dataframe(df[cols].tail(100), width="stretch")
-                render_multi_line_chart(df[cols].tail(200), columns=cols, title="特征趋势", height=350)
+
+                # 特征分类选择
+                categories = classify_feature_columns(cols, mod)
+                cat_names = [cat for cat, c_list in categories.items() if c_list]
+                selected_cat = st.selectbox("特征类别", cat_names, key=f"feat_cat_{mod}")
+
+                if selected_cat:
+                    cat_cols = categories[selected_cat]
+                    default_cols = get_top_features_by_variance(df[cat_cols].tail(200), cat_cols, top_k=6)
+                    selected_cols = st.multiselect(
+                        "选择特征变量",
+                        options=cat_cols,
+                        default=default_cols,
+                        key=f"feat_sel_{mod}",
+                        format_func=lambda c: c.split("__", 1)[1] if "__" in c else c,
+                    )
+                    if selected_cols:
+                        render_category_chart(
+                            df[selected_cols].tail(200),
+                            selected_cols,
+                            selected_cat,
+                            mod,
+                            height=380,
+                        )
             else:
                 st.info(f"该模块暂无特征")
 
