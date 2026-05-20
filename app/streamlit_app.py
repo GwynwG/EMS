@@ -38,6 +38,10 @@ from src.visualization.dashboard_components import (
     render_relationship_status_table,
     render_contribution_variables_table,
     render_contribution_dataframe,
+    render_diagnosis_card,
+    render_threshold_panel,
+    render_relation_summary,
+    render_kv_panel,
     format_coupling_text,
     MODULE_ID_TO_CHINESE,
     MODULE_SHORT_CHINESE,
@@ -667,6 +671,8 @@ def render_home_page() -> None:
     with c3:
         render_kpi_card_3layer("健康指数", f"{hi:.1f}", "综合健康评估指标", hi_status)
 
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+
     # Row 2: 来源分析（3列）
     var_contribs = _compute_var_contribs(tuple(sorted(module_scores.items())))
     top_var_cn = var_contribs[0]["chinese_name"] if var_contribs else "无"
@@ -681,6 +687,8 @@ def render_home_page() -> None:
     with c6:
         render_kpi_card_3layer("主要贡献变量", top_var_cn, f"所属: {top_var_module}", "attention")
 
+    st.markdown("<div style='height: 20px'></div>", unsafe_allow_html=True)
+
     # Row 3: 状态信息（2列）
     c7, c8 = st.columns(2)
     with c7:
@@ -693,6 +701,36 @@ def render_home_page() -> None:
     # ── Section 3: 系统状态摘要区 ──
     summary_data = ModuleScorer.compute_system_status_summary(status, df)
     render_system_status_summary_blocks(summary_data)
+
+    st.markdown("---")
+
+    # ── Section 3.5: 诊断结论 + 模块评分表 ──
+    # 诊断结论
+    risk_desc = "正常" if rs < 30 else ("关注" if rs < 50 else ("预警" if rs < 70 else "严重"))
+    recommended = summary_data.get("recommended_focus", {}).get("module", "状态维持")
+    recommended_cn = MODULE_SHORT_CHINESE.get(recommended, recommended)
+    render_diagnosis_card(
+        conclusion=f"当前系统总体状态为「{risk_desc}」，综合风险分数 {rs:.1f}，健康指数 {hi:.1f}。",
+        risk_source=abnormal_module_cn,
+        key_vars=top_var_cn,
+        suggestion=f"建议重点关注{recommended_cn}模块及相关变量变化趋势。",
+        status=risk_status,
+    )
+
+    # 四模块评分表
+    st.markdown("#### 四模块评分概览")
+    mod_score_data = []
+    for mod_id, mod_score in module_scores.items():
+        mod_risk = ModuleScorer.determine_risk_level(100 - mod_score)
+        mod_vars = [v for v in var_contribs if v.get("module") == mod_id]
+        mod_top_var = mod_vars[0]["chinese_name"] if mod_vars else "—"
+        mod_score_data.append({
+            "模块": MODULE_SHORT_CHINESE.get(mod_id, mod_id),
+            "评分": f"{mod_score:.1f}",
+            "风险等级": level_labels.get(mod_risk, mod_risk),
+            "主要异常变量": mod_top_var,
+        })
+    st.dataframe(pd.DataFrame(mod_score_data), width="stretch", hide_index=True)
 
     st.markdown("---")
 
@@ -830,6 +868,18 @@ def render_module_page(module_type: ModuleType) -> None:
     with c4:
         render_kpi_card("主要关联模块", related_module or "无", subtext="耦合关系最强", status="normal")
 
+    st.markdown("<div style='height: 16px'></div>", unsafe_allow_html=True)
+
+    # 诊断结论卡
+    score_desc = "健康" if score > 80 else ("亚健康" if score > 60 else ("异常" if score > 40 else "严重异常"))
+    render_diagnosis_card(
+        conclusion=f"{meta.chinese_name}当前状态为「{score_desc}」，模块评分 {score:.1f}，风险等级 {level_labels.get(risk_level, risk_level)}。",
+        risk_source=top_var,
+        key_vars=", ".join([v.get("chinese_name", "") for v in module_vars[:3]]) if module_vars else "无",
+        suggestion=f"关注{top_var}变化趋势及{related_module or '关联模块'}耦合状态。",
+        status=risk_level,
+    )
+
     st.markdown("---")
 
     # ═══ 板块 2: 核心变量趋势区 ═══
@@ -850,6 +900,25 @@ def render_module_page(module_type: ModuleType) -> None:
             st.info("该模块暂无特征数据")
     else:
         st.info("暂无特征数据")
+
+    st.markdown("---")
+
+    # ═══ 阈值与规则面板 ═══
+    st.markdown("## 阈值与规则状态")
+    threshold_data = []
+    if module_vars:
+        for v in module_vars[:6]:
+            val = v.get("current_value", 0)
+            contrib = v.get("contribution_degree", 0)
+            exceeded = contrib > 0.5
+            threshold_data.append({
+                "name": v.get("chinese_name", ""),
+                "current": f"{val:.2f}" if isinstance(val, (int, float)) else str(val),
+                "threshold": "贡献度 > 0.5",
+                "exceeded": exceeded,
+                "status": "超限" if exceeded else "正常",
+            })
+    render_threshold_panel(threshold_data)
 
     st.markdown("---")
 
@@ -926,10 +995,31 @@ def render_module_page(module_type: ModuleType) -> None:
 
     st.markdown("---")
 
+    # ═══ 异常解释卡 ═══
+    st.markdown("## 异常解释")
+    if module_vars:
+        abnormal_vars = [v for v in module_vars if v.get("status") in ("预警", "严重")]
+        if abnormal_vars:
+            top_abnormal = abnormal_vars[0]
+            anomaly_type = "统计异常" if top_abnormal.get("contribution_degree", 0) > 0.3 else "轻微偏离"
+            render_diagnosis_card(
+                conclusion=f"当前主要异常来自「{top_abnormal.get('chinese_name', '')}」，贡献度 {top_abnormal.get('contribution_degree', 0):.2f}，属于{anomaly_type}。",
+                risk_source=f"{meta.chinese_name}模块内变量",
+                key_vars=", ".join([v.get("chinese_name", "") for v in abnormal_vars[:3]]),
+                suggestion=f"优先排查{top_abnormal.get('chinese_name', '')}的工艺参数是否偏离正常范围。",
+                status="warning",
+            )
+        else:
+            render_diagnosis_card(
+                conclusion=f"{meta.chinese_name}当前无异常变量，所有指标均在正常范围内。",
+                status="normal",
+            )
+
+    st.markdown("---")
+
     # ═══ 板块 5: 模块关系与建议区 ═══
     st.markdown("## 模块关系与建议")
 
-    # 上下游关系
     upstream = []
     downstream = []
     for e in edge_contribs:
@@ -940,28 +1030,30 @@ def render_module_page(module_type: ModuleType) -> None:
         if src == module_type.value:
             downstream.append(MODULE_SHORT_CHINESE.get(tgt, tgt))
 
-    col_rel, col_suggest = st.columns(2)
-    with col_rel:
-        st.markdown("### 模块关系")
-        st.markdown(f"**上游影响模块**: {', '.join(upstream) if upstream else '无'}")
-        st.markdown(f"**下游影响模块**: {', '.join(downstream) if downstream else '无'}")
-        if related_edges:
-            e = related_edges[0]
-            st.markdown(f"**当前主要耦合异常**: {e.get('status', '正常')}")
-            st.markdown(f"**耦合强度**: {e.get('coupling_strength', 0):.2f}")
-            st.markdown(f"**残差水平**: {e.get('residual_level', 0):.2f}")
+    coupling_status = related_edges[0].get("status", "正常") if related_edges else ""
+    coupling_strength = related_edges[0].get("coupling_strength", 0.0) if related_edges else 0.0
+    direction = f"{meta.chinese_name} → {downstream[0]}" if downstream else "待分析"
 
-    with col_suggest:
-        st.markdown("### 建议关注")
-        if module_vars:
-            abnormal_vars = [v for v in module_vars if v.get("status") in ("预警", "严重")]
-            if abnormal_vars:
-                st.warning(f"当前有 {len(abnormal_vars)} 个异常变量需要关注")
-                for v in abnormal_vars[:3]:
-                    st.markdown(f"- **{v.get('chinese_name', '')}** ({v.get('status', '')}): 贡献度 {v.get('contribution_degree', 0):.2f}")
-            else:
-                st.success("当前模块所有变量状态正常")
-        st.markdown(f"**建议处置方向**: 关注{meta.chinese_name}相关变量变化趋势，必要时调整工艺参数")
+    render_relation_summary(
+        upstream=upstream,
+        downstream=downstream,
+        coupling=coupling_status,
+        strength=coupling_strength,
+        direction=direction,
+    )
+
+    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+    # 建议关注
+    if module_vars:
+        abnormal_vars = [v for v in module_vars if v.get("status") in ("预警", "严重")]
+        if abnormal_vars:
+            st.warning(f"当前有 {len(abnormal_vars)} 个异常变量需要关注")
+            for v in abnormal_vars[:3]:
+                st.markdown(f"- **{v.get('chinese_name', '')}** ({v.get('status', '')}): 贡献度 {v.get('contribution_degree', 0):.2f}")
+        else:
+            st.success("当前模块所有变量状态正常")
+    st.markdown(f"**建议处置方向**: 关注{meta.chinese_name}相关变量变化趋势，必要时调整工艺参数")
 
 
 # ════════════════════════════════════════════════════════════
@@ -1007,6 +1099,36 @@ def render_data_page() -> None:
             })
         quality_df = pd.DataFrame(quality_data)
         st.dataframe(quality_df, width="stretch")
+
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+        # 数据质量结论卡
+        high_missing = [q for q in quality_data if float(q["缺失率"].replace("%","")) > 5]
+        if high_missing:
+            render_diagnosis_card(
+                conclusion=f"数据整体缺失率 {missing_rate:.2f}%，其中有 {len(high_missing)} 个变量缺失率超过 5%。",
+                risk_source=", ".join([q["变量名"] for q in high_missing[:3]]),
+                suggestion="建议对高缺失率变量进行插值或剔除处理。",
+                status="warning",
+            )
+        else:
+            render_diagnosis_card(
+                conclusion=f"数据质量良好，整体缺失率 {missing_rate:.2f}%，所有变量缺失率均在 5% 以内。",
+                status="normal",
+            )
+
+        # 样本构造参数
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+        from src.utils.config_loader import load_feature_config
+        feat_cfg = load_feature_config()
+        window = feat_cfg.get("sliding_window", {}).get("window_length", "N/A")
+        step = feat_cfg.get("sliding_window", {}).get("step", "N/A")
+        render_kv_panel([
+            ("滑动窗口长度", str(window)),
+            ("滑动步长", str(step)),
+            ("变量总数", str(len(raw_df.columns))),
+            ("样本总数", f"{len(raw_df):,}"),
+        ], title="样本构造参数")
 
     st.markdown("---")
 
@@ -1067,10 +1189,22 @@ def render_feature_page() -> None:
         "state_maintenance": "状态维持",
     }
     c1, c2, c3, c4 = st.columns(4)
+    total_features = 0
     for col, mod in zip([c1, c2, c3, c4], modules):
         mod_cols = [c for c in df.columns if c.startswith(f"{mod}__")]
+        total_features += len(mod_cols)
         with col:
             render_kpi_card(f"{module_cn[mod]}特征数", str(len(mod_cols)), status="normal")
+
+    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+    # 特征分析结论卡
+    render_diagnosis_card(
+        conclusion=f"当前融合特征共 {len(df.columns)} 列，其中入模特征 {total_features} 个，覆盖 4 个模块。",
+        risk_source="特征选择后保留方差最大、相关性最低的特征",
+        suggestion="关注各模块特征方差分布，确保关键变量被保留。",
+        status="normal",
+    )
 
     st.markdown("---")
 
@@ -1132,6 +1266,16 @@ def render_model_page() -> None:
         render_kpi_card("Isolation Forest", "已加载", subtext="n_estimators=200", status="normal")
     with c3:
         render_kpi_card("健康指数计算器", "已启用", subtext="四因子加权融合", status="normal")
+
+    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+    # 模型运行说明卡
+    render_diagnosis_card(
+        conclusion="当前系统加载 PCA 监测模型和 Isolation Forest 异常检测模型，健康指数由四因子加权融合计算。",
+        risk_source="PCA T²/SPE 统计量 + IF 异常分数 + 模块评分 + 事件惩罚",
+        suggestion="关注 PCA 统计量和 IF 异常分数的联合变化趋势。",
+        status="normal",
+    )
 
     st.markdown("---")
 
@@ -1222,11 +1366,36 @@ def render_online_page() -> None:
     st.markdown("## 当前主异常链路")
     abnormal_module = MODULE_ID_TO_CHINESE.get(status["main_abnormal_module"], status["main_abnormal_module"])
     abnormal_coupling = format_coupling_text(status["main_abnormal_coupling"])
-    st.markdown(f"**主异常模块**: {abnormal_module}")
-    st.markdown(f"**主异常耦合**: {abnormal_coupling}")
+
+    df = load_model_results()
+
+    # 实时异常解释卡
+    rs = status["risk_score"]
+    risk_desc = "正常" if rs < 30 else ("关注" if rs < 50 else ("预警" if rs < 70 else "严重"))
+    render_diagnosis_card(
+        conclusion=f"当前系统状态为「{risk_desc}」，主异常来源为{abnormal_module}，主耦合异常为{abnormal_coupling}。",
+        risk_source=abnormal_module,
+        key_vars=abnormal_coupling,
+        suggestion=f"重点关注{abnormal_module}的实时数据变化。",
+        status=status["risk_level"],
+    )
+
+    st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+    # 模块风险排名表
+    st.markdown("### 模块风险排名")
+    module_scores = status.get("module_scores", {})
+    rank_data = []
+    for mod_id, mod_score in sorted(module_scores.items(), key=lambda x: x[1]):
+        mod_risk = ModuleScorer.determine_risk_level(100 - mod_score)
+        rank_data.append({
+            "模块": MODULE_SHORT_CHINESE.get(mod_id, mod_id),
+            "评分": f"{mod_score:.1f}",
+            "风险等级": level_labels.get(mod_risk, mod_risk),
+        })
+    st.dataframe(pd.DataFrame(rank_data), width="stretch", hide_index=True)
 
     # 最近预警
-    df = load_model_results()
     if not df.empty and "risk_level" in df.columns:
         recent_alarms = df[df["risk_level"].isin(["warning", "severe"])].tail(5)
         if not recent_alarms.empty:
@@ -1297,6 +1466,23 @@ def render_alarm_page() -> None:
         )
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+        # 预警结论卡
+        if len(alarms) > 0:
+            severe_pct = severe_count / len(alarms) * 100 if len(alarms) > 0 else 0
+            render_diagnosis_card(
+                conclusion=f"共 {len(alarms)} 条预警记录，其中严重预警 {severe_count} 条（{severe_pct:.1f}%），一般预警 {warning_count} 条。",
+                risk_source="融合判定结果 + 规则引擎",
+                suggestion="建议优先处理严重预警，排查对应模块变量的工艺参数。",
+                status="warning" if severe_count == 0 else "severe",
+            )
+        else:
+            render_diagnosis_card(
+                conclusion="当前无预警记录，设备状态正常。",
+                status="normal",
+            )
+
         st.markdown("---")
 
         # 预警记录表
@@ -1343,6 +1529,18 @@ def render_health_trend_page() -> None:
             render_kpi_card("最低健康指数", f"{hi.min():.1f}", status="warning")
         with c4:
             render_kpi_card("健康趋势", "下降" if hi.iloc[-1] < hi.iloc[-50] else "稳定", status="attention" if hi.iloc[-1] < hi.iloc[-50] else "normal")
+
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+
+        # 健康诊断卡
+        hi_level = "健康" if hi_current > 80 else ("亚健康" if hi_current > 60 else ("异常" if hi_current > 40 else "严重异常"))
+        trend_desc = "下降趋势" if hi.iloc[-1] < hi.iloc[-50] else "稳定"
+        render_diagnosis_card(
+            conclusion=f"当前健康指数 {hi_current:.1f}，健康等级为「{hi_level}」，近期呈{trend_desc}。",
+            risk_source=f"最低健康指数 {hi.min():.1f}，平均 {hi.mean():.1f}",
+            suggestion="关注健康指数下降趋势，必要时安排预防性维护。",
+            status=hi_status,
+        )
 
     st.markdown("---")
 
@@ -1404,6 +1602,31 @@ def render_health_trend_page() -> None:
             yaxis=dict(gridcolor=BORDER_MAIN, title="风险分数"),
         )
         st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    st.markdown("---")
+
+    # ═══ 维护建议 ═══
+    st.markdown("## 维护建议")
+    status = get_current_status()
+    hi_val = status.get("health_index", 100)
+    if hi_val > 80:
+        maintenance_level = "正常巡检"
+        maintenance_desc = "设备健康状态良好，维持常规巡检频率。"
+    elif hi_val > 60:
+        maintenance_level = "加强监测"
+        maintenance_desc = "设备健康状态一般，建议增加监测频率，关注退化趋势。"
+    elif hi_val > 40:
+        maintenance_level = "预防性维护"
+        maintenance_desc = "设备健康状态异常，建议安排预防性维护，排查关键变量。"
+    else:
+        maintenance_level = "紧急维护"
+        maintenance_desc = "设备健康状态严重异常，建议立即安排维护。"
+
+    render_kv_panel([
+        ("维护等级", maintenance_level),
+        ("当前健康指数", f"{hi_val:.1f}"),
+        ("建议", maintenance_desc),
+    ], title="维护建议")
 
     st.markdown("---")
 

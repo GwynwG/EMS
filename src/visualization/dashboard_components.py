@@ -239,16 +239,13 @@ def render_kpi_card_3layer(
     subtext: str = "",
     status: str = "normal",
 ) -> None:
-    """渲染 3 层 KPI 卡片（驾驶舱版）。
-
-    使用 min-height 替代固定高度，解决文字溢出问题。
-    """
+    """渲染 3 层 KPI 卡片（驾驶舱版）。"""
     color = _status_to_color(status)
     sub_html = (
-        f"<div style='font-size: 11px; color: {TEXT_MUTED}; line-height: 1.3; "
+        f"<div style='font-size: 12px; color: {TEXT_MUTED}; line-height: 1.4; "
         f"white-space: normal; word-break: break-word;'>{subtext}</div>"
         if subtext
-        else "<div style='font-size: 11px;'>&nbsp;</div>"
+        else "<div style='font-size: 12px;'>&nbsp;</div>"
     )
     st.markdown(
         f"""
@@ -256,9 +253,9 @@ def render_kpi_card_3layer(
             background: {BG_CARD};
             border: 1px solid {BORDER_MAIN};
             border-left: 3px solid {color};
-            border-radius: 10px;
-            padding: 14px 16px;
-            min-height: 110px;
+            border-radius: 14px;
+            padding: 18px 20px;
+            min-height: 120px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -266,7 +263,7 @@ def render_kpi_card_3layer(
             box-sizing: border-box;
         " title="{value}">
             <div style="
-                font-size: 12px;
+                font-size: 13px;
                 color: {TEXT_SECONDARY};
                 font-weight: 500;
                 letter-spacing: 0.02em;
@@ -491,3 +488,164 @@ def format_module_relation_display(relation_str: str) -> str:
     if relation_str.strip() in MODULE_SHORT_CHINESE:
         return MODULE_SHORT_CHINESE[relation_str.strip()]
     return relation_str
+
+
+# ════════════════════════════════════════════════════════════
+# 诊断结论卡
+# ════════════════════════════════════════════════════════════
+
+def render_diagnosis_card(
+    conclusion: str,
+    risk_source: str = "",
+    key_vars: str = "",
+    suggestion: str = "",
+    status: str = "normal",
+) -> None:
+    """渲染诊断结论卡 — 用左边框色条标识状态。"""
+    color = _status_to_color(status)
+    items = ""
+    if risk_source:
+        items += f"<div style='margin-bottom:6px;'><span style='color:{TEXT_MUTED};'>风险来源：</span><span style='color:{TEXT_SECONDARY};'>{risk_source}</span></div>"
+    if key_vars:
+        items += f"<div style='margin-bottom:6px;'><span style='color:{TEXT_MUTED};'>关键变量：</span><span style='color:{TEXT_SECONDARY};'>{key_vars}</span></div>"
+    if suggestion:
+        items += f"<div><span style='color:{TEXT_MUTED};'>建议关注：</span><span style='color:{ACCENT_BLUE};'>{suggestion}</span></div>"
+
+    st.markdown(
+        f"""
+        <div style="
+            background: {BG_CARD};
+            border: 1px solid {BORDER_MAIN};
+            border-left: 4px solid {color};
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin: 8px 0;
+        ">
+            <div style="font-size: 14px; color: {TEXT_MAIN}; font-weight: 600; margin-bottom: 10px; font-family: {FONT_FAMILY};">
+                诊断结论
+            </div>
+            <div style="font-size: 13px; color: {TEXT_SECONDARY}; line-height: 1.6; margin-bottom: 8px;">
+                {conclusion}
+            </div>
+            {items}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ════════════════════════════════════════════════════════════
+# 阈值与规则面板
+# ════════════════════════════════════════════════════════════
+
+def render_threshold_panel(thresholds: list[dict]) -> None:
+    """渲染阈值与规则面板。
+
+    每个 dict 包含: name, current, threshold, exceeded(bool), status
+    """
+    if not thresholds:
+        st.info("暂无阈值配置")
+        return
+
+    rows = ""
+    for t in thresholds:
+        exceeded = t.get("exceeded", False)
+        status_color = RISK_RED if exceeded else HEALTH_GREEN
+        status_text = "超限" if exceeded else "正常"
+        rows += f"""
+        <tr>
+            <td style="padding:8px 12px; color:{TEXT_SECONDARY}; font-size:13px;">{t.get('name','')}</td>
+            <td style="padding:8px 12px; color:{TEXT_MAIN}; font-size:13px; font-family:{FONT_MONO};">{t.get('current','')}</td>
+            <td style="padding:8px 12px; color:{TEXT_MUTED}; font-size:13px; font-family:{FONT_MONO};">{t.get('threshold','')}</td>
+            <td style="padding:8px 12px; color:{status_color}; font-size:13px; font-weight:600;">{status_text}</td>
+        </tr>"""
+
+    st.markdown(
+        f"""
+        <div style="
+            background: {BG_CARD};
+            border: 1px solid {BORDER_MAIN};
+            border-radius: 12px;
+            overflow: hidden;
+        ">
+            <div style="padding:14px 18px; border-bottom:1px solid {BORDER_MAIN};">
+                <span style="font-size:14px; color:{TEXT_MAIN}; font-weight:600; font-family:{FONT_FAMILY};">阈值与规则面板</span>
+            </div>
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:{TABLE_HEADER_BG};">
+                        <th style="padding:8px 12px; text-align:left; font-size:12px; color:{TEXT_MUTED}; font-weight:600;">指标</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:12px; color:{TEXT_MUTED}; font-weight:600;">当前值</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:12px; color:{TEXT_MUTED}; font-weight:600;">阈值</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:12px; color:{TEXT_MUTED}; font-weight:600;">状态</th>
+                    </tr>
+                </thead>
+                <tbody>{rows}</tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ════════════════════════════════════════════════════════════
+# 关系摘要卡
+# ════════════════════════════════════════════════════════════
+
+def render_relation_summary(
+    upstream: list[str] | None = None,
+    downstream: list[str] | None = None,
+    coupling: str = "",
+    strength: float = 0.0,
+    direction: str = "",
+) -> None:
+    """渲染关系摘要卡 — 展示模块上下游关系。"""
+    up_text = ", ".join(upstream) if upstream else "无"
+    down_text = ", ".join(downstream) if downstream else "无"
+
+    st.markdown(
+        f"""
+        <div style="
+            background: {BG_CARD};
+            border: 1px solid {BORDER_MAIN};
+            border-radius: 12px;
+            padding: 18px 22px;
+        ">
+            <div style="font-size:14px; color:{TEXT_MAIN}; font-weight:600; margin-bottom:12px; font-family:{FONT_FAMILY};">关联关系摘要</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px 24px;">
+                <div><span style="color:{TEXT_MUTED}; font-size:12px;">上游影响模块</span><br><span style="color:{TEXT_SECONDARY}; font-size:13px;">{up_text}</span></div>
+                <div><span style="color:{TEXT_MUTED}; font-size:12px;">下游影响模块</span><br><span style="color:{TEXT_SECONDARY}; font-size:13px;">{down_text}</span></div>
+                <div><span style="color:{TEXT_MUTED}; font-size:12px;">主要耦合关系</span><br><span style="color:{TEXT_SECONDARY}; font-size:13px;">{coupling or '无'}</span></div>
+                <div><span style="color:{TEXT_MUTED}; font-size:12px;">耦合强度</span><br><span style="color:{TEXT_MAIN}; font-size:13px; font-family:{FONT_MONO};">{strength:.2f}</span></div>
+                <div><span style="color:{TEXT_MUTED}; font-size:12px;">风险传递方向</span><br><span style="color:{ACCENT_BLUE}; font-size:13px;">{direction or '待分析'}</span></div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+# ════════════════════════════════════════════════════════════
+# 紧凑 Key-Value 面板
+# ════════════════════════════════════════════════════════════
+
+def render_kv_panel(items: list[tuple[str, str]], title: str = "") -> None:
+    """渲染紧凑 key-value 面板。items = [(key, value), ...]"""
+    rows = ""
+    for k, v in items:
+        rows += (
+            f"<div style='display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid {BORDER_MAIN}22;'>"
+            f"<span style='color:{TEXT_MUTED}; font-size:12px;'>{k}</span>"
+            f"<span style='color:{TEXT_SECONDARY}; font-size:12px; font-family:{FONT_MONO};'>{v}</span>"
+            f"</div>"
+        )
+    title_html = f"<div style='font-size:14px; color:{TEXT_MAIN}; font-weight:600; margin-bottom:10px; font-family:{FONT_FAMILY};'>{title}</div>" if title else ""
+    st.markdown(
+        f"""
+        <div style="background:{BG_CARD}; border:1px solid {BORDER_MAIN}; border-radius:12px; padding:16px 20px;">
+            {title_html}
+            {rows}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
