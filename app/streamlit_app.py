@@ -193,30 +193,37 @@ hr {{
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {{
-    background: #2A2D33;
-    border-radius: 10px;
-    padding: 6px;
-    gap: 4px;
+    background: #1F232A;
+    border-radius: 12px;
+    padding: 8px;
+    gap: 8px;
     border: 1px solid #3A3F46;
 }}
 .stTabs [data-baseweb="tab"] {{
-    background: transparent !important;
+    background: #2A2D33 !important;
     color: #A7B0BD !important;
-    border-radius: 8px;
+    border-radius: 10px;
     font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-    font-size: 16px !important;
+    font-size: 17px !important;
     font-weight: 600 !important;
-    padding: 10px 20px !important;
-    min-height: 44px !important;
+    padding: 12px 28px !important;
+    min-height: 48px !important;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}}
+.stTabs [data-baseweb="tab"]:hover {{
+    background: #333842 !important;
+    color: #E6EDF3 !important;
 }}
 .stTabs [aria-selected="true"] {{
-    background: #333842 !important;
+    background: linear-gradient(135deg, #2B3A4A, #333842) !important;
     color: #F1F5F9 !important;
+    border: 1px solid rgba(79,193,255,0.3) !important;
     border-bottom: 3px solid #4FC1FF !important;
-    box-shadow: 0 2px 8px rgba(79,193,255,0.15);
+    box-shadow: 0 2px 12px rgba(79,193,255,0.2);
 }}
 .stTabs [data-baseweb="tab-highlight"] {{
-    background-color: #4FC1FF !important;
+    background-color: transparent !important;
 }}
 .stTabs [data-baseweb="tab-border"] {{
     background-color: transparent !important;
