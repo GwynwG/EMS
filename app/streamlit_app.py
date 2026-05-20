@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT))
 import json
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from src.domain_framework.coupling_graph import CouplingGraph
@@ -51,6 +52,7 @@ from src.visualization.plotly_charts import (
 from src.visualization.theme import (
     BG_MAIN,
     BG_SIDEBAR,
+    BG_CONTENT,
     BG_CARD,
     BG_CARD_SOFT,
     BORDER_MAIN,
@@ -60,6 +62,8 @@ from src.visualization.theme import (
     TEXT_MUTED,
     ACCENT_BLUE,
     RISK_RED,
+    HEALTH_GREEN,
+    WARN_AMBER,
     STATUS_COLORS,
     FONT_FAMILY,
     FONT_MONO,
@@ -99,23 +103,23 @@ st.markdown(f"""
     color: {TEXT_MAIN} !important;
 }}
 [data-testid="stSidebar"] .stButton > button {{
-    background: #2A2D33 !important;
-    color: #D4D4D4 !important;
-    border: 1px solid #3A3F46 !important;
+    background: {BG_CARD} !important;
+    color: {TEXT_SECONDARY} !important;
+    border: 1px solid {BORDER_MAIN} !important;
     border-radius: 6px !important;
     margin-bottom: 2px;
     transition: all 0.2s ease;
     font-family: {FONT_FAMILY};
 }}
 [data-testid="stSidebar"] .stButton > button:hover {{
-    background: #333842 !important;
-    color: #F1F5F9 !important;
-    border-color: #4B5563 !important;
+    background: {BG_CARD_SOFT} !important;
+    color: {TEXT_MAIN} !important;
+    border-color: {BORDER_SOFT} !important;
 }}
 [data-testid="stSidebar"] .stButton > button[kind="primary"],
 [data-testid="stSidebar"] .stButton > button[data-testid="stBaseButton-primary"] {{
-    background: #333842 !important;
-    color: #F1F5F9 !important;
+    background: {BG_CARD_SOFT} !important;
+    color: {TEXT_MAIN} !important;
     border-color: {ACCENT_BLUE} !important;
     border-left: 3px solid {ACCENT_BLUE} !important;
 }}
@@ -155,18 +159,18 @@ hr {{
 }}
 .stButton > button[kind="primary"],
 .stButton > button[data-testid="stBaseButton-primary"] {{
-    background: #333842 !important;
+    background: {BG_CARD_SOFT} !important;
     color: {TEXT_MAIN} !important;
     border: 1px solid {ACCENT_BLUE} !important;
 }}
 .stButton > button[kind="secondary"],
 .stButton > button[data-testid="stBaseButton-secondary"] {{
-    background: {BG_CARD_SOFT} !important;
+    background: {BG_CARD} !important;
     color: {TEXT_SECONDARY} !important;
     border: 1px solid {BORDER_MAIN} !important;
 }}
 .stButton > button:hover {{
-    background: #303640 !important;
+    background: {BG_CARD_SOFT} !important;
     border-color: {ACCENT_BLUE}88 !important;
     color: {TEXT_MAIN} !important;
 }}
@@ -192,17 +196,17 @@ hr {{
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {{
-    background: #1F232A;
+    background: {BG_CONTENT};
     border-radius: 12px;
     padding: 8px;
     gap: 8px;
-    border: 1px solid #3A3F46;
+    border: 1px solid {BORDER_MAIN};
 }}
 .stTabs [data-baseweb="tab"] {{
-    background: #2A2D33 !important;
-    color: #A7B0BD !important;
+    background: {BG_CARD} !important;
+    color: {TEXT_MUTED} !important;
     border-radius: 10px;
-    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-family: {FONT_FAMILY};
     font-size: 17px !important;
     font-weight: 600 !important;
     padding: 12px 28px !important;
@@ -211,15 +215,15 @@ hr {{
     transition: all 0.2s ease;
 }}
 .stTabs [data-baseweb="tab"]:hover {{
-    background: #333842 !important;
-    color: #E6EDF3 !important;
+    background: {BG_CARD_SOFT} !important;
+    color: {TEXT_SECONDARY} !important;
 }}
 .stTabs [aria-selected="true"] {{
-    background: linear-gradient(135deg, #2B3A4A, #333842) !important;
-    color: #F1F5F9 !important;
-    border: 1px solid rgba(79,193,255,0.3) !important;
-    border-bottom: 3px solid #4FC1FF !important;
-    box-shadow: 0 2px 12px rgba(79,193,255,0.2);
+    background: {BG_CARD_SOFT} !important;
+    color: {TEXT_MAIN} !important;
+    border: 1px solid {ACCENT_BLUE}55 !important;
+    border-bottom: 3px solid {ACCENT_BLUE} !important;
+    box-shadow: 0 2px 12px {ACCENT_BLUE}33;
 }}
 .stTabs [data-baseweb="tab-highlight"] {{
     background-color: transparent !important;
@@ -644,7 +648,7 @@ def render_home_page() -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Section 2: KPI 总览区（2行×4列）──
+    # ── Section 2: KPI 总览区（3行布局）──
     risk_status = status["risk_level"]
     hi = status["health_index"]
     hi_status = "normal" if hi > 80 else ("attention" if hi > 60 else ("warning" if hi > 40 else "severe"))
@@ -654,31 +658,33 @@ def render_home_page() -> None:
     abnormal_coupling_cn = format_coupling_text(status["main_abnormal_coupling"])
     level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
 
-    # Row 1: 总体状态
-    c1, c2, c3, c4 = st.columns(4)
+    # Row 1: 核心指标（3列）
+    c1, c2, c3 = st.columns(3)
     with c1:
         render_kpi_card_3layer("综合风险分数", f"{rs:.1f}", "基于四模块加权融合", rs_status)
     with c2:
         render_kpi_card_3layer("当前预警等级", level_labels.get(risk_status, risk_status), "综合风险与事件规则判定", risk_status)
     with c3:
         render_kpi_card_3layer("健康指数", f"{hi:.1f}", "综合健康评估指标", hi_status)
-    with c4:
-        render_kpi_card_3layer("在线样本数", str(status["sample_count"]), "累计监测数据样本", "normal")
 
-    # Row 2: 解释来源
-    # 找主要贡献变量
+    # Row 2: 来源分析（3列）
     var_contribs = _compute_var_contribs(tuple(sorted(module_scores.items())))
     top_var_cn = var_contribs[0]["chinese_name"] if var_contribs else "无"
     top_var_module = MODULE_SHORT_CHINESE.get(var_contribs[0]["module"], "") if var_contribs else ""
     model_status_text = "PCA/IF/HI 已加载"
 
-    c5, c6, c7, c8 = st.columns(4)
-    with c5:
+    c4, c5, c6 = st.columns(3)
+    with c4:
         render_kpi_card_3layer("主异常模块", abnormal_module_cn, "评分最低的核心模块", "warning")
-    with c6:
+    with c5:
         render_kpi_card_3layer("主异常耦合关系", abnormal_coupling_cn, "残差最大的模块关系", "attention")
-    with c7:
+    with c6:
         render_kpi_card_3layer("主要贡献变量", top_var_cn, f"所属: {top_var_module}", "attention")
+
+    # Row 3: 状态信息（2列）
+    c7, c8 = st.columns(2)
+    with c7:
+        render_kpi_card_3layer("在线样本数", str(status["sample_count"]), "累计监测数据样本", "normal")
     with c8:
         render_kpi_card_3layer("当前模型状态", model_status_text, "PCA/IF/HI 模型运行状态", "normal")
 
@@ -691,6 +697,8 @@ def render_home_page() -> None:
     st.markdown("---")
 
     # ── Section 4: 四模块领域模型关系图 ──
+    st.markdown("### 四模块状态监测关系图")
+    st.caption("特种材料制备设备状态监测系统的模块关系与诊断链路")
     sel_obj = st.session_state.selected_object
     selected_id = sel_obj.get("id", "state_maintenance")
 
@@ -785,52 +793,175 @@ def render_module_page(module_type: ModuleType) -> None:
     meta = get_module_meta(module_type)
     status = get_current_status()
     score = status["module_scores"].get(module_type.value, 100.0)
+    level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
 
     st.markdown(f"# {meta.chinese_name}")
     st.markdown(f"*{meta.description}*")
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
+    # ═══ 板块 1: 模块总览区 ═══
+    st.markdown("## 模块总览")
+    risk_level = ModuleScorer.determine_risk_level(100 - score)
+
+    # 找主要异常变量
+    var_contribs = _compute_var_contribs(tuple(sorted(status.get("module_scores", {}).items())))
+    module_vars = [v for v in var_contribs if v.get("module") == module_type.value]
+    top_var = module_vars[0]["chinese_name"] if module_vars else "无"
+    top_var_status = module_vars[0].get("status", "正常") if module_vars else "正常"
+
+    # 找主要关联模块
+    graph = get_coupling_graph()
+    edge_contribs = _compute_edge_contribs(tuple(sorted(status.get("module_scores", {}).items())))
+    related_edges = [e for e in edge_contribs if module_type.value in e.get("source", "") or module_type.value in e.get("target", "")]
+    related_module = ""
+    if related_edges:
+        e = related_edges[0]
+        src = e.get("source", "")
+        tgt = e.get("target", "")
+        other = tgt if src == module_type.value else src
+        related_module = MODULE_SHORT_CHINESE.get(other, other)
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
         render_kpi_card("模块评分", f"{score:.1f}", status="normal" if score > 80 else ("attention" if score > 60 else "warning"))
-    with col2:
-        risk_level = ModuleScorer.determine_risk_level(100 - score)
-        level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
+    with c2:
         render_kpi_card("风险等级", level_labels.get(risk_level, risk_level), status=risk_level)
-    with col3:
-        render_kpi_card("变量数", str(len(meta.variables)), status="normal")
+    with c3:
+        render_kpi_card("主要异常变量", top_var, subtext=top_var_status, status="attention")
+    with c4:
+        render_kpi_card("主要关联模块", related_module or "无", subtext="耦合关系最强", status="normal")
 
     st.markdown("---")
 
-    st.markdown("### 模块变量")
-    from src.utils.config_loader import get_variable_by_module
-    var_list = get_variable_by_module(module_type.value)
-    if var_list:
-        var_df = pd.DataFrame(var_list)
-        st.dataframe(var_df[["standard_name", "chinese_name", "unit", "raw_tag", "data_type", "sampling_rate"]], width="stretch")
-
-    st.markdown("### 模块特征趋势分析")
-    st.caption(f"当前模块：{meta.chinese_name}")
+    # ═══ 板块 2: 核心变量趋势区 ═══
+    st.markdown("## 核心变量趋势")
+    _module_page_names = {
+        "execution_control": "执行控制",
+        "energy_input": "能量输入",
+        "environmental_constraint": "环境约束",
+        "state_maintenance": "状态维持",
+    }
+    page_name = _module_page_names.get(module_type.value, module_type.value)
     df = load_fused_features()
     if not df.empty:
         module_cols = [c for c in df.columns if c.startswith(f"{module_type.value}__")]
         if module_cols:
-            st.dataframe(df[module_cols].tail(50), width="stretch")
-            # 模块页面名映射
-            _module_page_names = {
-                "execution_control": "执行控制",
-                "energy_input": "能量输入",
-                "environmental_constraint": "环境约束",
-                "state_maintenance": "状态维持",
-            }
-            page_name = _module_page_names.get(module_type.value, module_type.value)
             render_all_trend_groups(page_name, df[module_cols].tail(200), module_name=module_type.value, tail_n=0)
         else:
             st.info("该模块暂无特征数据")
+    else:
+        st.info("暂无特征数据")
 
-    st.markdown("### 模块配置")
-    st.markdown(f"- 模块类型: {module_type.value}")
-    st.markdown(f"- 变量数量: {len(meta.variables)}")
-    st.markdown("- 状态: 已启用")
+    st.markdown("---")
+
+    # ═══ 板块 3: 特征与贡献分析区 ═══
+    st.markdown("## 特征与贡献分析")
+
+    # Top 贡献变量条形图
+    if module_vars:
+        top8 = module_vars[:8]
+        var_names = [v.get("chinese_name", v.get("variable", "")) for v in top8]
+        var_degrees = [v.get("contribution_degree", 0) for v in top8]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=var_names[::-1],
+            x=var_degrees[::-1],
+            orientation="h",
+            marker_color=ACCENT_BLUE,
+            text=[f"{d:.2f}" for d in var_degrees[::-1]],
+            textposition="outside",
+        ))
+        fig.update_layout(
+            title="模块内变量贡献度排名",
+            plot_bgcolor=BG_CONTENT,
+            paper_bgcolor=BG_CONTENT,
+            font=dict(color=TEXT_SECONDARY, family="Microsoft YaHei", size=12),
+            height=max(300, len(top8) * 40),
+            margin=dict(l=120, r=40, t=40, b=40),
+            xaxis=dict(gridcolor=BORDER_MAIN, title="贡献度"),
+            yaxis=dict(gridcolor=BORDER_MAIN),
+        )
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    # 变量统计摘要表
+    from src.utils.config_loader import get_variable_by_module
+    var_list = get_variable_by_module(module_type.value)
+    if var_list:
+        st.markdown("### 变量字典")
+        var_df = pd.DataFrame(var_list)
+        st.dataframe(var_df[["chinese_name", "standard_name", "unit", "data_type", "sampling_rate"]], width="stretch")
+
+    st.markdown("---")
+
+    # ═══ 板块 4: 模型诊断区 ═══
+    st.markdown("## 模型诊断")
+    model_df = load_model_results()
+    if not model_df.empty:
+        # 模块相关模型统计量
+        module_model_keywords = {
+            "execution_control": ["pca_anomaly_score", "pca_t2", "pca_spe"],
+            "energy_input": ["pca_anomaly_score", "pca_t2", "if_anomaly_score"],
+            "environmental_constraint": ["pca_anomaly_score", "pca_spe", "if_anomaly_score"],
+            "state_maintenance": ["pca_anomaly_score", "pca_t2", "pca_spe", "if_anomaly_score", "health_index"],
+        }
+        keywords = module_model_keywords.get(module_type.value, ["pca_anomaly_score", "if_anomaly_score"])
+        avail_cols = [c for c in keywords if c in model_df.columns]
+        if avail_cols:
+            display_names = {
+                "pca_anomaly_score": "PCA异常分数",
+                "pca_t2": "T²统计量",
+                "pca_spe": "SPE残差统计量",
+                "if_anomaly_score": "IF异常分数",
+                "health_index": "健康指数",
+            }
+            render_multi_line_chart(
+                model_df[avail_cols].tail(200),
+                columns=avail_cols,
+                title=f"{meta.chinese_name} — 模型诊断统计量",
+                display_names=display_names,
+            )
+        else:
+            st.info("暂无模型诊断数据")
+    else:
+        st.info("暂无模型结果数据")
+
+    st.markdown("---")
+
+    # ═══ 板块 5: 模块关系与建议区 ═══
+    st.markdown("## 模块关系与建议")
+
+    # 上下游关系
+    upstream = []
+    downstream = []
+    for e in edge_contribs:
+        src = e.get("source", "")
+        tgt = e.get("target", "")
+        if tgt == module_type.value:
+            upstream.append(MODULE_SHORT_CHINESE.get(src, src))
+        if src == module_type.value:
+            downstream.append(MODULE_SHORT_CHINESE.get(tgt, tgt))
+
+    col_rel, col_suggest = st.columns(2)
+    with col_rel:
+        st.markdown("### 模块关系")
+        st.markdown(f"**上游影响模块**: {', '.join(upstream) if upstream else '无'}")
+        st.markdown(f"**下游影响模块**: {', '.join(downstream) if downstream else '无'}")
+        if related_edges:
+            e = related_edges[0]
+            st.markdown(f"**当前主要耦合异常**: {e.get('status', '正常')}")
+            st.markdown(f"**耦合强度**: {e.get('coupling_strength', 0):.2f}")
+            st.markdown(f"**残差水平**: {e.get('residual_level', 0):.2f}")
+
+    with col_suggest:
+        st.markdown("### 建议关注")
+        if module_vars:
+            abnormal_vars = [v for v in module_vars if v.get("status") in ("预警", "严重")]
+            if abnormal_vars:
+                st.warning(f"当前有 {len(abnormal_vars)} 个异常变量需要关注")
+                for v in abnormal_vars[:3]:
+                    st.markdown(f"- **{v.get('chinese_name', '')}** ({v.get('status', '')}): 贡献度 {v.get('contribution_degree', 0):.2f}")
+            else:
+                st.success("当前模块所有变量状态正常")
+        st.markdown(f"**建议处置方向**: 关注{meta.chinese_name}相关变量变化趋势，必要时调整工艺参数")
 
 
 # ════════════════════════════════════════════════════════════
@@ -840,7 +971,46 @@ def render_data_page() -> None:
     st.markdown("# 数据接入")
     st.markdown("支持 Excel 历史数据导入和 DCS 实时数据连接。")
 
-    tab1, tab2 = st.tabs(["Excel 导入", "DCS 连接"])
+    # ═══ 数据源概况 ═══
+    st.markdown("## 数据源概况")
+    processed_path = ROOT / "data" / "processed" / "imported_data.csv"
+    if processed_path.exists():
+        raw_df = load_csv(processed_path, index_col=0, parse_dates=True)
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            render_kpi_card("总行数", f"{len(raw_df):,}", status="normal")
+        with c2:
+            render_kpi_card("变量数", str(len(raw_df.columns)), status="normal")
+        with c3:
+            missing_rate = raw_df.isnull().sum().sum() / (raw_df.shape[0] * raw_df.shape[1]) * 100
+            render_kpi_card("整体缺失率", f"{missing_rate:.2f}%", status="normal" if missing_rate < 1 else "warning")
+        with c4:
+            render_kpi_card("数据状态", "已导入", status="normal")
+    else:
+        st.warning("暂无已导入数据")
+
+    st.markdown("---")
+
+    # ═══ 数据质量概览 ═══
+    st.markdown("## 数据质量概览")
+    if processed_path.exists():
+        quality_data = []
+        for col in raw_df.columns:
+            col_missing = raw_df[col].isnull().sum()
+            col_missing_rate = col_missing / len(raw_df) * 100
+            quality_data.append({
+                "变量名": col,
+                "缺失数": col_missing,
+                "缺失率": f"{col_missing_rate:.2f}%",
+                "数据类型": str(raw_df[col].dtype),
+                "唯一值数": raw_df[col].nunique(),
+            })
+        quality_df = pd.DataFrame(quality_data)
+        st.dataframe(quality_df, width="stretch")
+
+    st.markdown("---")
+
+    tab1, tab2, tab3 = st.tabs(["Excel 导入", "DCS 连接", "数据字典"])
 
     with tab1:
         st.markdown("### Excel 数据导入")
@@ -851,11 +1021,9 @@ def render_data_page() -> None:
             st.info(f"共 {len(df)} 行 × {len(df.columns)} 列")
 
         st.markdown("### 已导入数据")
-        processed_path = ROOT / "data" / "processed" / "imported_data.csv"
         if processed_path.exists():
-            df = load_csv(processed_path, index_col=0, parse_dates=True)
-            st.dataframe(df.tail(20), width="stretch")
-            st.info(f"共 {len(df)} 行 × {len(df.columns)} 列")
+            st.dataframe(raw_df.tail(20), width="stretch")
+            st.info(f"共 {len(raw_df)} 行 × {len(raw_df.columns)} 列")
         else:
             st.warning("暂无已导入数据")
 
@@ -866,6 +1034,17 @@ def render_data_page() -> None:
         st.markdown("- 数据源: data/processed/cleaned_data.csv")
         st.markdown("- 轮询间隔: 2.0s")
         st.markdown("- 缓冲区大小: 500")
+
+    with tab3:
+        st.markdown("### 数据字典预览")
+        from src.utils.config_loader import load_variable_dictionary
+        var_dict = load_variable_dictionary()
+        if var_dict:
+            dict_df = pd.DataFrame(var_dict)
+            display_cols = [c for c in ["chinese_name", "standard_name", "raw_tag", "unit", "module", "data_type", "sampling_rate", "usage"] if c in dict_df.columns]
+            st.dataframe(dict_df[display_cols], width="stretch")
+        else:
+            st.info("暂无数据字典")
 
 
 # ════════════════════════════════════════════════════════════
@@ -878,16 +1057,56 @@ def render_feature_page() -> None:
         st.warning("暂无特征数据，请先运行特征构建脚本。")
         return
 
-    st.info(f"融合特征: {df.shape[0]} 行 × {df.shape[1]} 列")
+    # ═══ 特征概览 ═══
+    st.markdown("## 特征概览")
+    modules = ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]
+    module_cn = {
+        "execution_control": "执行控制",
+        "energy_input": "能量输入",
+        "environmental_constraint": "环境约束",
+        "state_maintenance": "状态维持",
+    }
+    c1, c2, c3, c4 = st.columns(4)
+    for col, mod in zip([c1, c2, c3, c4], modules):
+        mod_cols = [c for c in df.columns if c.startswith(f"{mod}__")]
+        with col:
+            render_kpi_card(f"{module_cn[mod]}特征数", str(len(mod_cols)), status="normal")
+
+    st.markdown("---")
+
+    # ═══ 特征重要性排序 ═══
+    st.markdown("## 特征方差排序（全局 Top 20）")
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if numeric_cols:
+        variances = df[numeric_cols].var().sort_values(ascending=False).head(20)
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=[c.split("__", 1)[1] if "__" in c else c for c in variances.index[::-1]],
+            x=variances.values[::-1],
+            orientation="h",
+            marker_color=ACCENT_BLUE,
+        ))
+        fig.update_layout(
+            plot_bgcolor=BG_CONTENT,
+            paper_bgcolor=BG_CONTENT,
+            font=dict(color=TEXT_SECONDARY, family="Microsoft YaHei", size=11),
+            height=500,
+            margin=dict(l=200, r=40, t=20, b=40),
+            xaxis=dict(gridcolor=BORDER_MAIN, title="方差"),
+            yaxis=dict(gridcolor=BORDER_MAIN),
+        )
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    st.markdown("---")
 
     tab1, tab2, tab3, tab4 = st.tabs(["执行控制", "能量输入", "环境约束", "状态维持"])
     tabs = [tab1, tab2, tab3, tab4]
-    modules = ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]
 
     for tab, mod in zip(tabs, modules):
         with tab:
             cols = [c for c in df.columns if c.startswith(f"{mod}__")]
             if cols:
+                st.markdown(f"### {module_cn[mod]}模块特征数据")
                 st.dataframe(df[cols].tail(100), width="stretch")
                 render_all_trend_groups("特征分析", df[cols].tail(200), module_name=mod, tail_n=0)
             else:
@@ -904,7 +1123,58 @@ def render_model_page() -> None:
         st.warning("暂无模型结果，请先运行训练脚本 (04_train_baseline_models.py)。")
         return
 
-    st.info(f"模型结果: {len(df)} 条")
+    # ═══ 模型清单 ═══
+    st.markdown("## 当前模型清单")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        render_kpi_card("PCA 监测模型", "已加载", subtext="n_components=0.95", status="normal")
+    with c2:
+        render_kpi_card("Isolation Forest", "已加载", subtext="n_estimators=200", status="normal")
+    with c3:
+        render_kpi_card("健康指数计算器", "已启用", subtext="四因子加权融合", status="normal")
+
+    st.markdown("---")
+
+    # ═══ 模型配置 ═══
+    st.markdown("## 模型超参数配置")
+    from src.utils.config_loader import load_model_config
+    model_cfg = load_model_config()
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("### PCA 配置")
+        pca_cfg = model_cfg.get("pca", {})
+        st.markdown(f"- n_components: {pca_cfg.get('n_components', 'N/A')}")
+        st.markdown(f"- anomaly_threshold_percentile: {pca_cfg.get('anomaly_threshold_percentile', 'N/A')}")
+        st.markdown("### Isolation Forest 配置")
+        if_cfg = model_cfg.get("isolation_forest", {})
+        st.markdown(f"- n_estimators: {if_cfg.get('n_estimators', 'N/A')}")
+        st.markdown(f"- contamination: {if_cfg.get('contamination', 'N/A')}")
+    with col_b:
+        st.markdown("### 健康指数权重")
+        hi_weights = model_cfg.get("health_index", {}).get("weights", {})
+        for k, v in hi_weights.items():
+            st.markdown(f"- {k}: {v}")
+        st.markdown("### 风险融合模块权重")
+        rf_weights = model_cfg.get("risk_fusion", {}).get("module_weights", {})
+        for k, v in rf_weights.items():
+            st.markdown(f"- {MODULE_SHORT_CHINESE.get(k, k)}: {v}")
+
+    st.markdown("---")
+
+    # ═══ 训练结果统计 ═══
+    st.markdown("## 训练结果统计摘要")
+    st.info(f"模型结果: {len(df)} 条记录")
+    stat_cols = ["pca_anomaly_score", "pca_t2", "pca_spe", "if_anomaly_score", "health_index", "risk_score"]
+    avail = [c for c in stat_cols if c in df.columns]
+    if avail:
+        stat_df = df[avail].describe().T
+        stat_df.index = ["PCA异常分数", "T²统计量", "SPE统计量", "IF异常分数", "健康指数", "风险分数"][:len(avail)]
+        st.dataframe(stat_df, width="stretch")
+
+    st.markdown("---")
+
+    # ═══ 趋势图 ═══
+    st.markdown("## 模型输出趋势")
     render_all_trend_groups("模型训练", df.tail(200))
 
 
@@ -916,10 +1186,13 @@ def render_online_page() -> None:
     st.info("当前使用 MockDCSConnector 模拟在线监测。")
 
     status = get_current_status()
+    level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
 
+    # ═══ 实时状态卡片 ═══
+    st.markdown("## 实时状态")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        render_kpi_card("风险分数", f"{status['risk_score']:.1f}", status="normal")
+        render_kpi_card("风险分数", f"{status['risk_score']:.1f}", status=status["risk_level"])
     with col2:
         hi = status['health_index']
         hi_status = "normal" if hi > 80 else ("attention" if hi > 60 else "warning")
@@ -927,12 +1200,12 @@ def render_online_page() -> None:
     with col3:
         render_kpi_card("样本数", str(status["sample_count"]), status="normal")
     with col4:
-        level_labels = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
         render_kpi_card("风险等级", level_labels.get(status["risk_level"], status["risk_level"]), status=status["risk_level"])
 
     st.markdown("---")
 
-    st.markdown("### 四模块状态评分")
+    # ═══ 模块状态评分 ═══
+    st.markdown("## 四模块状态评分")
     module_names = {
         "execution_control": "执行控制",
         "energy_input": "能量输入",
@@ -944,7 +1217,27 @@ def render_online_page() -> None:
         render_module_score_bar(mod, score, name)
 
     st.markdown("---")
+
+    # ═══ 主异常链路 ═══
+    st.markdown("## 当前主异常链路")
+    abnormal_module = MODULE_ID_TO_CHINESE.get(status["main_abnormal_module"], status["main_abnormal_module"])
+    abnormal_coupling = format_coupling_text(status["main_abnormal_coupling"])
+    st.markdown(f"**主异常模块**: {abnormal_module}")
+    st.markdown(f"**主异常耦合**: {abnormal_coupling}")
+
+    # 最近预警
     df = load_model_results()
+    if not df.empty and "risk_level" in df.columns:
+        recent_alarms = df[df["risk_level"].isin(["warning", "severe"])].tail(5)
+        if not recent_alarms.empty:
+            st.markdown("### 最近预警")
+            alarm_cols = [c for c in ["risk_score", "risk_level", "health_index", "pca_anomaly_score"] if c in recent_alarms.columns]
+            st.dataframe(recent_alarms[alarm_cols], width="stretch")
+
+    st.markdown("---")
+
+    # ═══ 趋势图 ═══
+    st.markdown("## 实时趋势")
     if not df.empty:
         render_all_trend_groups("在线监测", df.tail(200))
 
@@ -960,9 +1253,54 @@ def render_alarm_page() -> None:
         st.warning("暂无预警数据。")
         return
 
+    # ═══ 预警统计 ═══
+    st.markdown("## 预警统计")
     if "risk_level" in df.columns:
         alarms = df[df["risk_level"].isin(["warning", "severe"])]
-        st.info(f"共 {len(alarms)} 条预警记录")
+        level_counts = df["risk_level"].value_counts()
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            render_kpi_card("总记录数", f"{len(df):,}", status="normal")
+        with c2:
+            render_kpi_card("预警记录", str(len(alarms)), status="warning" if len(alarms) > 0 else "normal")
+        with c3:
+            severe_count = level_counts.get("severe", 0)
+            render_kpi_card("严重预警", str(severe_count), status="severe" if severe_count > 0 else "normal")
+        with c4:
+            warning_count = level_counts.get("warning", 0)
+            render_kpi_card("一般预警", str(warning_count), status="warning" if warning_count > 0 else "normal")
+
+        st.markdown("---")
+
+        # 风险等级分布
+        st.markdown("## 风险等级分布")
+        level_map = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
+        dist_data = {level_map.get(k, k): v for k, v in level_counts.items()}
+        fig = go.Figure()
+        colors = {"正常": ACCENT_BLUE, "关注": WARN_AMBER, "预警": WARN_AMBER, "严重": RISK_RED}
+        fig.add_trace(go.Bar(
+            x=list(dist_data.keys()),
+            y=list(dist_data.values()),
+            marker_color=[colors.get(k, TEXT_MUTED) for k in dist_data.keys()],
+            text=list(dist_data.values()),
+            textposition="outside",
+        ))
+        fig.update_layout(
+            plot_bgcolor=BG_CONTENT,
+            paper_bgcolor=BG_CONTENT,
+            font=dict(color=TEXT_SECONDARY, family="Microsoft YaHei", size=12),
+            height=300,
+            margin=dict(l=40, r=40, t=40, b=40),
+            xaxis=dict(gridcolor=BORDER_MAIN),
+            yaxis=dict(gridcolor=BORDER_MAIN, title="记录数"),
+        )
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+        st.markdown("---")
+
+        # 预警记录表
+        st.markdown("## 预警记录明细")
         if not alarms.empty:
             display_cols = []
             for c in ["risk_score", "risk_level", "health_index", "pca_anomaly_score", "if_anomaly_score"]:
@@ -973,6 +1311,9 @@ def render_alarm_page() -> None:
             st.success("暂无预警记录，设备状态正常。")
 
     st.markdown("---")
+
+    # ═══ 趋势图 ═══
+    st.markdown("## 预警趋势")
     render_all_trend_groups("预警记录", df.tail(200))
 
 
@@ -986,15 +1327,88 @@ def render_health_trend_page() -> None:
         st.warning("暂无健康趋势数据。")
         return
 
+    # ═══ 健康概览 ═══
+    st.markdown("## 健康概览")
     if "health_index" in df.columns:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            render_kpi_card("平均健康指数", f"{df['health_index'].mean():.1f}", status="normal")
-        with col2:
-            render_kpi_card("最低健康指数", f"{df['health_index'].min():.1f}", status="warning")
-        with col3:
-            render_kpi_card("当前健康指数", f"{df['health_index'].iloc[-1]:.1f}", status="normal")
+        hi = df["health_index"]
+        hi_current = hi.iloc[-1]
+        hi_status = "normal" if hi_current > 80 else ("attention" if hi_current > 60 else ("warning" if hi_current > 40 else "severe"))
 
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            render_kpi_card("当前健康指数", f"{hi_current:.1f}", status=hi_status)
+        with c2:
+            render_kpi_card("平均健康指数", f"{hi.mean():.1f}", status="normal")
+        with c3:
+            render_kpi_card("最低健康指数", f"{hi.min():.1f}", status="warning")
+        with c4:
+            render_kpi_card("健康趋势", "下降" if hi.iloc[-1] < hi.iloc[-50] else "稳定", status="attention" if hi.iloc[-1] < hi.iloc[-50] else "normal")
+
+    st.markdown("---")
+
+    # ═══ 模块健康贡献 ═══
+    st.markdown("## 模块健康贡献")
+    status = get_current_status()
+    module_scores = status.get("module_scores", {})
+    if module_scores:
+        mod_cn = {
+            "execution_control": "执行控制",
+            "energy_input": "能量输入",
+            "environmental_constraint": "环境约束",
+            "state_maintenance": "状态维持",
+        }
+        fig = go.Figure()
+        names = [mod_cn.get(k, k) for k in module_scores.keys()]
+        scores = list(module_scores.values())
+        bar_colors = [ACCENT_BLUE if s > 80 else (WARN_AMBER if s > 60 else RISK_RED) for s in scores]
+        fig.add_trace(go.Bar(
+            x=names,
+            y=scores,
+            marker_color=bar_colors,
+            text=[f"{s:.1f}" for s in scores],
+            textposition="outside",
+        ))
+        fig.update_layout(
+            title="四模块健康评分",
+            plot_bgcolor=BG_CONTENT,
+            paper_bgcolor=BG_CONTENT,
+            font=dict(color=TEXT_SECONDARY, family="Microsoft YaHei", size=12),
+            height=300,
+            margin=dict(l=40, r=40, t=50, b=40),
+            xaxis=dict(gridcolor=BORDER_MAIN),
+            yaxis=dict(gridcolor=BORDER_MAIN, title="评分", range=[0, 105]),
+        )
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    st.markdown("---")
+
+    # ═══ 风险-健康联动 ═══
+    if "risk_score" in df.columns and "health_index" in df.columns:
+        st.markdown("## 风险-健康联动")
+        fig = go.Figure()
+        fig.add_trace(go.Scattergl(
+            x=df["health_index"].tail(500),
+            y=df["risk_score"].tail(500),
+            mode="markers",
+            marker=dict(color=ACCENT_BLUE, size=4, opacity=0.6),
+            name="样本点",
+        ))
+        fig.update_layout(
+            title="健康指数 vs 风险分数",
+            plot_bgcolor=BG_CONTENT,
+            paper_bgcolor=BG_CONTENT,
+            font=dict(color=TEXT_SECONDARY, family="Microsoft YaHei", size=12),
+            height=380,
+            margin=dict(l=40, r=40, t=50, b=40),
+            xaxis=dict(gridcolor=BORDER_MAIN, title="健康指数"),
+            yaxis=dict(gridcolor=BORDER_MAIN, title="风险分数"),
+        )
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    st.markdown("---")
+
+    # ═══ 趋势图 ═══
+    st.markdown("## 健康趋势详情")
     render_all_trend_groups("健康趋势", df)
 
 

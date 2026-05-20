@@ -35,21 +35,22 @@ from src.visualization.theme import (
 
 # ── 节点布局定义（5 层）──
 # (cx, cy) = 节点中心坐标; w, h = 宽高
-# viewBox: 0 0 1200 940
+# viewBox: 0 0 1200 1000
+# 所有 cy 整体下移 60px，避免遮挡外部标题
 NODE_DEFS = [
     # Layer 1: 执行控制（顶部居中）
-    {"id": "execution_control",        "label": "执行控制模块",     "desc": "设定值 / 控制指令 / 控制模式",  "cx": 600, "cy": 120, "w": 220, "h": 110, "group": "core"},
+    {"id": "execution_control",        "label": "执行控制模块",     "desc": "设定值 / 控制指令 / 控制模式",  "cx": 600, "cy": 180, "w": 220, "h": 110, "group": "core"},
     # Layer 2: 作用条件（左右对称）
-    {"id": "energy_input",             "label": "能量输入模块",     "desc": "功率 / 电压 / 能量驱动",       "cx": 220, "cy": 310, "w": 210, "h": 110, "group": "core"},
-    {"id": "environmental_constraint", "label": "环境约束模块",     "desc": "冷却水 / 气压 / 环境边界",     "cx": 980, "cy": 310, "w": 210, "h": 110, "group": "core"},
+    {"id": "energy_input",             "label": "能量输入模块",     "desc": "功率 / 电压 / 能量驱动",       "cx": 220, "cy": 370, "w": 210, "h": 110, "group": "core"},
+    {"id": "environmental_constraint", "label": "环境约束模块",     "desc": "冷却水 / 气压 / 环境边界",     "cx": 980, "cy": 370, "w": 210, "h": 110, "group": "core"},
     # Layer 3: 核心状态（居中）
-    {"id": "state_maintenance",        "label": "状态维持模块",     "desc": "温度 / 压力 / 振动 / 稳定性",  "cx": 600, "cy": 500, "w": 240, "h": 120, "group": "core"},
+    {"id": "state_maintenance",        "label": "状态维持模块",     "desc": "温度 / 压力 / 振动 / 稳定性",  "cx": 600, "cy": 560, "w": 240, "h": 120, "group": "core"},
     # Layer 4: 残差补偿（三列）
-    {"id": "coupling_residual",        "label": "复杂耦合/残差",    "desc": "多源耦合残差处理",             "cx": 180, "cy": 690, "w": 200, "h": 100, "group": "residual"},
-    {"id": "model_residual",           "label": "模型残差",         "desc": "PCA/PLS 统计残差",             "cx": 600, "cy": 690, "w": 200, "h": 100, "group": "residual"},
-    {"id": "intelligent_model",        "label": "智能补偿模型",     "desc": "XGBoost / Autoencoder",        "cx": 1020, "cy": 690, "w": 210, "h": 100, "group": "model"},
+    {"id": "coupling_residual",        "label": "复杂耦合/残差",    "desc": "多源耦合残差处理",             "cx": 180, "cy": 750, "w": 200, "h": 100, "group": "residual"},
+    {"id": "model_residual",           "label": "模型残差",         "desc": "PCA/PLS 统计残差",             "cx": 600, "cy": 750, "w": 200, "h": 100, "group": "residual"},
+    {"id": "intelligent_model",        "label": "智能补偿模型",     "desc": "XGBoost / Autoencoder",        "cx": 1020, "cy": 750, "w": 210, "h": 100, "group": "model"},
     # Layer 5: 诊断决策（底部居中）
-    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "状态监测 / 异常预警 / 寿命评估", "cx": 600, "cy": 860, "w": 200, "h": 100, "group": "diagnosis"},
+    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "状态监测 / 异常预警 / 寿命评估", "cx": 600, "cy": 920, "w": 200, "h": 100, "group": "diagnosis"},
 ]
 
 
@@ -62,37 +63,36 @@ EDGE_DEFS = [
         "id": "execution_control__energy_input",
         "label": "执行→能量",
         "type": "main",
-        "path": "M 510 175 C 460 230, 300 250, 260 255",
-        "label_xy": (370, 215),
+        "path": "M 510 235 C 460 290, 300 310, 260 315",
+        "label_xy": (370, 275),
     },
     {
         "id": "execution_control__environmental_constraint",
         "label": "执行→环境",
         "type": "main",
-        "path": "M 690 175 C 740 230, 900 250, 935 255",
-        "label_xy": (830, 215),
+        "path": "M 690 235 C 740 290, 900 310, 935 315",
+        "label_xy": (830, 275),
     },
     {
         "id": "energy_input__state_maintenance",
         "label": "能量→状态",
         "type": "main",
-        "path": "M 325 365 C 400 380, 460 430, 500 440",
-        "label_xy": (390, 400),
+        "path": "M 325 425 C 400 440, 460 490, 500 500",
+        "label_xy": (390, 460),
     },
     {
         "id": "environmental_constraint__state_maintenance",
         "label": "环境→状态",
         "type": "main",
-        "path": "M 875 365 C 800 380, 740 430, 700 440",
-        "label_xy": (810, 400),
+        "path": "M 875 425 C 800 440, 740 490, 700 500",
+        "label_xy": (810, 460),
     },
     {
         "id": "state_maintenance__diagnosis_layer",
         "label": "状态→诊断",
         "type": "main",
-        # 从状态维持底部偏右出发，向右弯曲绕过模型残差，到达诊断层顶部
-        "path": "M 640 555 C 790 620, 760 780, 630 810",
-        "label_xy": (760, 690),
+        "path": "M 640 615 C 790 680, 760 840, 630 870",
+        "label_xy": (760, 750),
     },
 
     # ── 反馈（蓝色虚线）──
@@ -100,8 +100,8 @@ EDGE_DEFS = [
         "id": "state_maintenance__execution_control",
         "label": "反馈",
         "type": "feedback",
-        "path": "M 480 490 C 320 480, 320 180, 490 130",
-        "label_xy": (340, 320),
+        "path": "M 480 550 C 320 540, 320 240, 490 190",
+        "label_xy": (340, 380),
     },
 
     # ── 辅助线（灰色虚线）──
@@ -109,42 +109,42 @@ EDGE_DEFS = [
         "id": "energy_input__coupling_residual",
         "label": "",
         "type": "auxiliary",
-        "path": "M 220 365 C 220 460, 200 580, 190 640",
+        "path": "M 220 425 C 220 520, 200 640, 190 700",
         "label_xy": (0, 0),
     },
     {
         "id": "environmental_constraint__coupling_residual",
         "label": "",
         "type": "auxiliary",
-        "path": "M 980 365 C 1080 480, 400 560, 260 640",
+        "path": "M 980 425 C 1080 540, 400 620, 260 700",
         "label_xy": (0, 0),
     },
     {
         "id": "execution_control__coupling_residual",
         "label": "",
         "type": "auxiliary",
-        "path": "M 490 175 C 340 190, 100 420, 120 640",
+        "path": "M 490 235 C 340 250, 100 480, 120 700",
         "label_xy": (0, 0),
     },
     {
         "id": "coupling_residual__intelligent_model",
         "label": "",
         "type": "auxiliary",
-        "path": "M 280 710 C 420 730, 780 730, 915 710",
+        "path": "M 280 770 C 420 790, 780 790, 915 770",
         "label_xy": (0, 0),
     },
     {
         "id": "model_residual__intelligent_model",
         "label": "",
         "type": "auxiliary",
-        "path": "M 700 700 C 780 720, 860 720, 915 710",
+        "path": "M 700 760 C 780 780, 860 780, 915 770",
         "label_xy": (0, 0),
     },
     {
         "id": "intelligent_model__diagnosis_layer",
         "label": "",
         "type": "auxiliary",
-        "path": "M 1020 740 C 1020 800, 780 850, 700 860",
+        "path": "M 1020 800 C 1020 860, 780 910, 700 920",
         "label_xy": (0, 0),
     },
 ]
@@ -336,18 +336,13 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
     svg_html = f"""
 <div style="background:{BG_GRAPH_WRAP}; border-radius:14px; border:1px solid {BORDER_MAIN};
             padding:24px; width:100%; box-sizing:border-box; overflow:hidden; pointer-events:none;">
-<svg viewBox="0 0 1200 940" width="100%" height="940" preserveAspectRatio="xMidYMid meet"
+<svg viewBox="0 0 1200 1000" width="100%" height="1000" preserveAspectRatio="xMidYMid meet"
      xmlns="http://www.w3.org/2000/svg" style="pointer-events:none; display:block; margin:0 auto;">
 <defs>
 {defs_str}
 </defs>
 <!-- 背景 -->
-<rect x="0" y="0" width="1200" height="940" rx="8" ry="8" fill="{BG_GRAPH_INNER}"/>
-<!-- 图标题 -->
-<text x="600" y="42" font-size="26" font-weight="700" fill="{TEXT_MAIN}"
-      text-anchor="middle" font-family="{FONT_FAMILY}">四模块状态监测关系图</text>
-<text x="600" y="68" font-size="13" fill="{TEXT_MUTED}"
-      text-anchor="middle" font-family="{FONT_FAMILY}">特种材料制备设备状态监测系统</text>
+<rect x="0" y="0" width="1200" height="1000" rx="8" ry="8" fill="{BG_GRAPH_INNER}"/>
 <!-- 第一层：连线 -->
 {edges_str}
 <!-- 第二层：标签 -->
@@ -358,7 +353,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 </div>
 """
 
-    components.html(svg_html, height=1000, scrolling=False)
+    components.html(svg_html, height=1060, scrolling=False)
 
 
 def get_module_detail(node_id: str, module_scores: dict[str, float] | None = None) -> dict[str, Any]:
