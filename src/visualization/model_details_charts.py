@@ -1,0 +1,369 @@
+"""模型详情页图表模块。
+
+为"算法参考"页面提供 PCA 内部诊断、瀑布图、桑基图、热力图等 Plotly 图表。
+"""
+from __future__ import annotations
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+from src.visualization.theme import (
+    BG_CONTENT,
+    BORDER_MAIN,
+    TEXT_MAIN,
+    TEXT_SECONDARY,
+    TEXT_MUTED,
+    ACCENT_BLUE,
+    RISK_RED,
+    HEALTH_GREEN,
+    WARN_AMBER,
+    FONT_FAMILY,
+    FONT_MONO,
+)
+from src.visualization.plotly_charts import _get_base_layout, _hex_to_rgb
+
+
+# ════════════════════════════════════════════════════════════
+# PCA 内部诊断图表
+# ════════════════════════════════════════════════════════════
+
+def render_scree_plot(pca_model) -> None:
+    """PCA 碎石图：各主成分方差解释比 + 累积曲线。"""
+    ev = pca_model.explained_variance_ratio_
+    n = len(ev)
+    x = [f"PC{i+1}" for i in range(n)]
+    cum = np.cumsum(ev)
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=x, y=ev, name="单成分方差比",
+        marker_color=ACCENT_BLUE, opacity=0.8,
+    ))
+    fig.add_trace(go.Scatter(
+        x=x, y=cum, name="累积方差比",
+        mode="lines+markers",
+        line=dict(color=RISK_RED, width=2),
+        marker=dict(size=6),
+    ))
+    fig.add_hline(y=0.95, line_dash="dash", line_color=WARN_AMBER,
+                  annotation_text="95% 保留阈值", annotation_font_color=WARN_AMBER)
+
+    layout = _get_base_layout("PCA 碎石图 — 特征值谱", height=360, n_traces=2)
+    layout["yaxis"]["title"] = "方差解释比"
+    layout["yaxis"]["range"] = [0, 1.05]
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_loading_plot(pca_model, feature_names: list[str], top_n: int = 15) -> None:
+    """PCA 载荷热力图：特征与主成分的关系。"""
+    components = pca_model.components_
+    n_pcs = min(5, components.shape[0])
+
+    # 选取载荷绝对值最大的 top_n 个特征
+    max_loading = np.max(np.abs(components[:n_pcs]), axis=0)
+    top_idx = np.argsort(max_loading)[::-1][:top_n]
+    selected_names = [feature_names[i] for i in top_idx]
+    selected_loadings = components[:n_pcs, top_idx]
+
+    pc_labels = [f"PC{i+1}" for i in range(n_pcs)]
+
+    fig = go.Figure(data=go.Heatmap(
+        z=selected_loadings,
+        x=selected_names,
+        y=pc_labels,
+        colorscale="RdBu_r",
+        zmid=0,
+        text=np.round(selected_loadings, 2),
+        texttemplate="%{text}",
+        textfont=dict(size=10, color=TEXT_MAIN),
+        hovertemplate="特征: %{x}<br>主成分: %{y}<br>载荷: %{z:.3f}<extra></extra>",
+    ))
+
+    layout = _get_base_layout(f"PCA 载荷矩阵 — Top {top_n} 特征", height=300, n_traces=1)
+    layout["xaxis"]["tickangle"] = -45
+    layout["xaxis"]["tickfont"] = dict(size=10, color=TEXT_SECONDARY)
+    layout["yaxis"]["tickfont"] = dict(size=11, color=TEXT_SECONDARY)
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_t2_spe_scatter(
+    t2: np.ndarray,
+    spe: np.ndarray,
+    threshold_t2: float,
+    threshold_spe: float,
+    is_anomaly: np.ndarray | None = None,
+) -> None:
+    """T² vs SPE 散点图，标注阈值线和异常象限。"""
+    colors = np.where(is_anomaly == 1, RISK_RED, ACCENT_BLUE) if is_anomaly is not None else ACCENT_BLUE
+
+    fig = go.Figure()
+
+    # 异常象限阴影
+    fig.add_shape(type="rect", x0=threshold_spe, x1=max(spe.max() * 1.1, threshold_spe * 1.5),
+                  y0=threshold_t2, y1=max(t2.max() * 1.1, threshold_t2 * 1.5),
+                  fillcolor=f"rgba({_hex_to_rgb(RISK_RED)},0.06)", line_width=0)
+
+    fig.add_trace(go.Scattergl(
+        x=spe, y=t2, mode="markers",
+        marker=dict(color=colors, size=4, opacity=0.6),
+        name="样本",
+        hovertemplate="SPE: %{x:.2f}<br>T²: %{y:.2f}<extra></extra>",
+    ))
+
+    # 阈值线
+    fig.add_hline(y=threshold_t2, line_dash="dash", line_color=WARN_AMBER, line_width=1.5,
+                  annotation_text=f"T²_th={threshold_t2:.1f}", annotation_font_color=WARN_AMBER)
+    fig.add_vline(x=threshold_spe, line_dash="dash", line_color=WARN_AMBER, line_width=1.5,
+                  annotation_text=f"SPE_th={threshold_spe:.1f}", annotation_font_color=WARN_AMBER)
+
+    layout = _get_base_layout("T² vs SPE 联合监测图", height=400, n_traces=1)
+    layout["xaxis"]["title"] = "SPE 统计量"
+    layout["yaxis"]["title"] = "T² 统计量"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_pca_2d_scatter(
+    scores: np.ndarray,
+    is_anomaly: np.ndarray | None = None,
+    explained_var: list[float] | None = None,
+) -> None:
+    """PC1 vs PC2 得分空间散点图。"""
+    if scores.shape[1] < 2:
+        st.info("PCA 成分数量不足 2，无法绘制二维散点图")
+        return
+
+    colors = np.where(is_anomaly == 1, RISK_RED, ACCENT_BLUE) if is_anomaly is not None else ACCENT_BLUE
+
+    x_label = "PC1"
+    y_label = "PC2"
+    if explained_var and len(explained_var) >= 2:
+        x_label = f"PC1 ({explained_var[0]*100:.1f}%)"
+        y_label = f"PC2 ({explained_var[1]*100:.1f}%)"
+
+    fig = go.Figure()
+    fig.add_trace(go.Scattergl(
+        x=scores[:, 0], y=scores[:, 1], mode="markers",
+        marker=dict(color=colors, size=4, opacity=0.6),
+        name="样本",
+        hovertemplate=f"{x_label}: %{{x:.2f}}<br>{y_label}: %{{y:.2f}}<extra></extra>",
+    ))
+
+    layout = _get_base_layout("PCA 得分空间（PC1 vs PC2）", height=400, n_traces=1)
+    layout["xaxis"]["title"] = x_label
+    layout["yaxis"]["title"] = y_label
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+# ════════════════════════════════════════════════════════════
+# 瀑布图 — 健康指数 / 风险分数分解
+# ════════════════════════════════════════════════════════════
+
+def render_hi_waterfall(
+    pca_health: float,
+    if_health: float,
+    mod_health: float,
+    event_health: float,
+    weights: dict[str, float],
+    final_hi: float,
+) -> None:
+    """健康指数分解瀑布图。"""
+    pca_contrib = weights.get("pca_score", 0.25) * pca_health
+    if_contrib = weights.get("isolation_forest_score", 0.25) * if_health
+    mod_contrib = weights.get("module_scores", 0.35) * mod_health
+    event_contrib = weights.get("event_penalty", 0.15) * event_health
+
+    measures = ["relative", "relative", "relative", "relative", "total"]
+    x_labels = ["PCA 异常分", "IF 异常分", "模块均分", "事件惩罚", "健康指数"]
+    y_vals = [pca_contrib, if_contrib, mod_contrib, event_contrib, final_hi]
+    text_vals = [f"{v:.1f}" for v in y_vals]
+
+    fig = go.Figure(go.Waterfall(
+        x=x_labels, y=y_vals, measure=measures,
+        textposition="outside", text=text_vals,
+        connector=dict(line=dict(color=BORDER_MAIN)),
+        increasing=dict(marker=dict(color=HEALTH_GREEN)),
+        decreasing=dict(marker=dict(color=RISK_RED)),
+        totals=dict(marker=dict(color=ACCENT_BLUE)),
+    ))
+
+    layout = _get_base_layout("健康指数分解瀑布图", height=360, n_traces=1)
+    layout["yaxis"]["title"] = "贡献值"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_risk_waterfall(
+    module_risk: float,
+    anomaly_score: float,
+    hi_deficit: float,
+    event_penalty: float,
+    final_risk: float,
+) -> None:
+    """风险分数分解瀑布图。"""
+    measures = ["relative", "relative", "relative", "relative", "total"]
+    x_labels = ["模块风险 (50%)", "异常分数 (30%)", "健康缺失 (20%)", "事件惩罚", "综合风险"]
+    y_vals = [
+        0.5 * module_risk,
+        0.3 * anomaly_score,
+        0.2 * hi_deficit,
+        event_penalty * 10,
+        final_risk,
+    ]
+    text_vals = [f"{v:.1f}" for v in y_vals]
+
+    fig = go.Figure(go.Waterfall(
+        x=x_labels, y=y_vals, measure=measures,
+        textposition="outside", text=text_vals,
+        connector=dict(line=dict(color=BORDER_MAIN)),
+        increasing=dict(marker=dict(color=RISK_RED)),
+        decreasing=dict(marker=dict(color=HEALTH_GREEN)),
+        totals=dict(marker=dict(color=ACCENT_BLUE)),
+    ))
+
+    layout = _get_base_layout("风险分数分解瀑布图", height=360, n_traces=1)
+    layout["yaxis"]["title"] = "贡献值"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+# ════════════════════════════════════════════════════════════
+# 桑基图 — 模型数据流
+# ════════════════════════════════════════════════════════════
+
+def render_model_flow_sankey() -> None:
+    """模型数据流桑基图。"""
+    from src.visualization.model_formulas import MODEL_FLOW_NODES, MODEL_FLOW_LINKS
+
+    node_colors = [
+        "#4B5563",  # 原始特征
+        "#6B7280",  # 特征工程
+        ACCENT_BLUE,  # PCA
+        ACCENT_BLUE,  # IF
+        ACCENT_BLUE,  # 模块 PCA
+        "#6B7280",  # 事件特征
+        HEALTH_GREEN,  # 健康指数
+        WARN_AMBER,  # 风险融合
+        RISK_RED,   # 诊断预警
+    ]
+
+    fig = go.Figure(go.Sankey(
+        arrangement="snap",
+        node=dict(
+            pad=20, thickness=25, line=dict(color=BORDER_MAIN, width=1),
+            label=MODEL_FLOW_NODES,
+            color=node_colors,
+        ),
+        link=dict(
+            source=[l[0] for l in MODEL_FLOW_LINKS],
+            target=[l[1] for l in MODEL_FLOW_LINKS],
+            value=[l[2] for l in MODEL_FLOW_LINKS],
+            color=[f"rgba({_hex_to_rgb(l[3])},0.3)" for l in MODEL_FLOW_LINKS],
+        ),
+    ))
+
+    layout = _get_base_layout("模型数据流全景图", height=400, n_traces=1)
+    layout["font"]["size"] = 12
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+# ════════════════════════════════════════════════════════════
+# 热力图 — 相关性矩阵 / 耦合强度矩阵
+# ════════════════════════════════════════════════════════════
+
+def render_correlation_heatmap(df: pd.DataFrame, top_n: int = 20) -> None:
+    """变量相关性热力图（取方差最大的 top_n 个特征）。"""
+    if df.empty:
+        st.info("暂无特征数据")
+        return
+
+    # 选取方差最大的列
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    if len(numeric_cols) > top_n:
+        variances = df[numeric_cols].var()
+        numeric_cols = list(variances.nlargest(top_n).index)
+
+    corr = df[numeric_cols].corr()
+
+    # 简化列名（去掉模块前缀）
+    short_names = []
+    for c in numeric_cols:
+        name = c
+        for prefix in ["execution_control__", "energy_input__",
+                       "environmental_constraint__", "state_maintenance__"]:
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+                break
+        short_names.append(name)
+
+    fig = go.Figure(data=go.Heatmap(
+        z=corr.values,
+        x=short_names,
+        y=short_names,
+        colorscale="RdBu_r",
+        zmid=0, zmin=-1, zmax=1,
+        hovertemplate="%{x} vs %{y}: %{z:.3f}<extra></extra>",
+    ))
+
+    layout = _get_base_layout(f"变量相关性矩阵（Top {top_n}）", height=500, n_traces=1)
+    layout["xaxis"]["tickangle"] = -45
+    layout["xaxis"]["tickfont"] = dict(size=9, color=TEXT_SECONDARY)
+    layout["yaxis"]["tickfont"] = dict(size=9, color=TEXT_SECONDARY)
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_coupling_strength_matrix(
+    module_scores: dict[str, float],
+    coupling_graph=None,
+) -> None:
+    """4×4 模块耦合强度矩阵热力图。"""
+    from src.domain_framework.module_scoring import ModuleScorer
+    from src.visualization.dashboard_components import MODULE_SHORT_CHINESE
+
+    if coupling_graph is None:
+        from src.domain_framework.coupling_graph import CouplingGraph
+        coupling_graph = CouplingGraph()
+
+    # 使用 compute_edge_contributions 获取耦合强度数据
+    edge_data = ModuleScorer.compute_edge_contributions(module_scores, coupling_graph)
+
+    modules = ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]
+    mod_cn = [MODULE_SHORT_CHINESE.get(m, m) for m in modules]
+    n = len(modules)
+
+    # 构建 4×4 矩阵
+    matrix = np.zeros((n, n))
+    for ed in edge_data:
+        eid = ed["id"]
+        parts = eid.split("__")
+        if len(parts) == 2 and parts[0] in modules and parts[1] in modules:
+            i = modules.index(parts[0])
+            j = modules.index(parts[1])
+            matrix[i, j] = ed["coupling_strength"]
+
+    # 对角线置为 1.0（自身耦合）
+    np.fill_diagonal(matrix, 1.0)
+
+    # 文本标注
+    text = np.array([[f"{v:.2f}" if v > 0 else "-" for v in row] for row in matrix])
+
+    fig = go.Figure(data=go.Heatmap(
+        z=matrix, x=mod_cn, y=mod_cn,
+        colorscale="YlOrRd", zmin=0, zmax=1,
+        text=text, texttemplate="%{text}",
+        textfont=dict(size=13, color=TEXT_MAIN),
+        hovertemplate="%{y} → %{x}: %{z:.3f}<extra></extra>",
+    ))
+
+    layout = _get_base_layout("模块耦合强度矩阵", height=350, n_traces=1)
+    layout["xaxis"]["tickfont"] = dict(size=12, color=TEXT_SECONDARY)
+    layout["yaxis"]["tickfont"] = dict(size=12, color=TEXT_SECONDARY)
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})

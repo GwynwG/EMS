@@ -170,15 +170,29 @@ def _build_arrow_marker(color: str, marker_id: str, size: float = 8) -> str:
     )
 
 
-def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, float] | None = None) -> None:
+def render_four_module_graph_svg(
+    selected_id: str,
+    module_scores: dict[str, float] | None = None,
+    coupling_matrix: "np.ndarray | None" = None,
+) -> None:
     """渲染四模块状态监测关系图（纯 SVG）。
 
     Args:
         selected_id: 当前选中的节点或边 id
         module_scores: 核心四模块的健康分数
+        coupling_matrix: 4×4 模块耦合强度矩阵（可选，用于在边标签上显示强度值）
     """
     module_scores = module_scores or {}
     node_map = {nd["id"]: nd for nd in NODE_DEFS}
+
+    # 构建边 id → 耦合强度的查找表
+    _coupling_lookup: dict[str, float] = {}
+    if coupling_matrix is not None:
+        _modules = ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]
+        for i, m1 in enumerate(_modules):
+            for j, m2 in enumerate(_modules):
+                if i != j and i < len(coupling_matrix) and j < len(coupling_matrix[0]):
+                    _coupling_lookup[f"{m1}__{m2}"] = float(coupling_matrix[i, j])
 
     # ════════════════════════════════════════════════════════════
     # defs：箭头 markers + 选中蓝色阴影
@@ -206,7 +220,12 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         is_sel = edge["id"] == selected_id
 
         color = ACCENT_BLUE if is_sel else ecfg["stroke"]
-        width = SELECTED_STROKE_WIDTH if is_sel else ecfg["width"]
+        base_width = float(ecfg["width"])
+        # 耦合强度缩放线宽（仅核心模块边）
+        strength = _coupling_lookup.get(edge["id"])
+        if strength is not None and strength > 0 and edge["type"] in ("main", "feedback"):
+            base_width = 1.0 + strength * 3.0  # 范围 1.0 ~ 4.0
+        width = SELECTED_STROKE_WIDTH if is_sel else base_width
 
         dash = ""
         opacity = "0.85"
@@ -243,7 +262,14 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
         is_sel = edge["id"] == selected_id
         label_color = ACCENT_BLUE if is_sel else TEXT_SECONDARY
         font_w = "600" if is_sel else "400"
-        text_len = len(edge["label"]) * 8 + 16
+
+        # 构建标签文本（含耦合强度）
+        label_text = edge["label"]
+        strength = _coupling_lookup.get(edge["id"])
+        if strength is not None and strength > 0:
+            label_text = f"{edge['label']} ({strength:.2f})"
+
+        text_len = len(label_text) * 8 + 16
 
         # 底板
         label_parts.append(
@@ -256,7 +282,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
             f'<text x="{lx:.0f}" y="{ly + 3:.0f}" '
             f'font-size="13" fill="{label_color}" text-anchor="middle" '
             f'font-weight="{font_w}" font-family="{FONT_FAMILY}" opacity="0.9">'
-            f'{edge["label"]}</text>'
+            f'{label_text}</text>'
         )
 
     labels_str = "\n".join(label_parts)

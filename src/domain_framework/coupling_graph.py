@@ -128,3 +128,46 @@ class CouplingGraph:
             if e.source == source and e.target == target:
                 return e
         return None
+
+    def compute_coupling_matrix(self, module_features_df: "pd.DataFrame") -> "np.ndarray":
+        """计算 4 个核心模块之间的耦合强度矩阵。
+
+        基于模块特征序列的互相关系数，结合现有边权重加权。
+        返回 4×4 numpy 数组，对角线为 1.0。
+        """
+        import numpy as np
+        import pandas as pd
+
+        modules = ["execution_control", "energy_input", "environmental_constraint", "state_maintenance"]
+        n = len(modules)
+        matrix = np.zeros((n, n))
+
+        # 提取各模块特征的均值序列
+        mod_series = {}
+        for mod in modules:
+            cols = [c for c in module_features_df.columns if c.startswith(f"{mod}__")]
+            if cols:
+                mod_series[mod] = module_features_df[cols].mean(axis=1)
+            else:
+                mod_series[mod] = pd.Series(np.zeros(len(module_features_df)))
+
+        # 计算模块间相关系数
+        for i, m1 in enumerate(modules):
+            for j, m2 in enumerate(modules):
+                if i == j:
+                    matrix[i, j] = 1.0
+                elif i < j:
+                    corr = mod_series[m1].corr(mod_series[m2])
+                    corr = abs(corr) if not np.isnan(corr) else 0.0
+                    # 结合边权重
+                    edge = self.get_edge(m1, m2)
+                    edge_rev = self.get_edge(m2, m1)
+                    edge_weight = 1.0
+                    if edge:
+                        edge_weight = max(edge_weight, edge.coupling_strength if edge.coupling_strength > 0 else 0.5)
+                    if edge_rev:
+                        edge_weight = max(edge_weight, edge_rev.coupling_strength if edge_rev.coupling_strength > 0 else 0.5)
+                    matrix[i, j] = round(corr * edge_weight, 3)
+                    matrix[j, i] = matrix[i, j]
+
+        return matrix

@@ -576,3 +576,202 @@ def render_all_trend_groups(
             st.caption(group["desc"])
         if len(cols) >= 8:
             st.caption("仅展示前 8 个代表变量")
+
+
+# ════════════════════════════════════════════════════════════
+# 仪表盘 / 表盘
+# ════════════════════════════════════════════════════════════
+
+def render_gauge_chart(
+    value: float,
+    title: str,
+    max_val: float = 100,
+    height: int = 260,
+) -> None:
+    """渲染仪表盘/表盘图。0-30 绿色（健康），30-70 琥珀（关注），70-100 红色（风险）。"""
+    from src.visualization.theme import HEALTH_GREEN, WARN_AMBER, RISK_RED
+
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=value,
+        number=dict(
+            font=dict(size=36, color=TEXT_MAIN, family=FONT_FAMILY),
+            valueformat=".1f",
+        ),
+        title=dict(
+            text=title,
+            font=dict(size=14, color=TEXT_SECONDARY, family=FONT_FAMILY),
+        ),
+        gauge=dict(
+            axis=dict(range=[0, max_val], tickwidth=1, tickcolor=BORDER_MAIN,
+                      tickfont=dict(size=11, color=TEXT_MUTED)),
+            bar=dict(color=ACCENT_BLUE, thickness=0.3),
+            bgcolor=BG_CONTENT,
+            borderwidth=1, bordercolor=BORDER_MAIN,
+            steps=[
+                {"range": [0, 30], "color": f"rgba({_hex_to_rgb(HEALTH_GREEN)},0.15)"},
+                {"range": [30, 70], "color": f"rgba({_hex_to_rgb(WARN_AMBER)},0.12)"},
+                {"range": [70, 100], "color": f"rgba({_hex_to_rgb(RISK_RED)},0.12)"},
+            ],
+            threshold=dict(
+                line=dict(color=RISK_RED, width=2),
+                thickness=0.8,
+                value=value,
+            ),
+        ),
+    ))
+
+    fig.update_layout(
+        paper_bgcolor=BG_CONTENT,
+        plot_bgcolor=BG_CONTENT,
+        height=height,
+        margin=dict(l=30, r=30, t=60, b=20),
+        font=dict(family=FONT_FAMILY),
+    )
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+# ════════════════════════════════════════════════════════════
+# 异常事件时间线
+# ════════════════════════════════════════════════════════════
+
+def render_anomaly_timeline(
+    df: pd.DataFrame,
+    height: int = 300,
+) -> None:
+    """异常事件时间线：标记 PCA/IF 异常发生时刻。"""
+    if df.empty:
+        st.info("暂无异常数据")
+        return
+
+    fig = go.Figure()
+    x = _series_to_x(df.iloc[:, 0])
+
+    # PCA 异常
+    if "pca_anomaly_score" in df.columns:
+        pca_anom = df["pca_anomaly_score"] > 1.0
+        if pca_anom.any():
+            fig.add_trace(go.Scattergl(
+                x=x[pca_anom] if hasattr(x, '__getitem__') else [xi for xi, a in zip(x, pca_anom) if a],
+                y=[1] * pca_anom.sum(),
+                mode="markers",
+                name="PCA 异常",
+                marker=dict(color=RISK_RED, size=8, symbol="diamond",
+                            line=dict(width=1, color="#fff")),
+                hovertemplate="PCA 异常<br>%{x}<extra></extra>",
+            ))
+
+    # IF 异常
+    if "if_anomaly_score" in df.columns:
+        if_anom = df["if_anomaly_score"] > 0.7
+        if if_anom.any():
+            fig.add_trace(go.Scattergl(
+                x=x[if_anom] if hasattr(x, '__getitem__') else [xi for xi, a in zip(x, if_anom) if a],
+                y=[0.5] * if_anom.sum(),
+                mode="markers",
+                name="IF 异常",
+                marker=dict(color=WARN_AMBER, size=7, symbol="triangle-up",
+                            line=dict(width=1, color="#fff")),
+                hovertemplate="IF 异常<br>%{x}<extra></extra>",
+            ))
+
+    # 风险等级变化
+    if "risk_level" in df.columns:
+        level_colors = {"normal": ACCENT_BLUE, "attention": WARN_AMBER,
+                        "warning": WARN_AMBER, "severe": RISK_RED}
+        for level, color in level_colors.items():
+            mask = df["risk_level"] == level
+            if mask.any():
+                fig.add_trace(go.Scattergl(
+                    x=[xi for xi, m in zip(x, mask) if m],
+                    y=[0] * mask.sum(),
+                    mode="markers",
+                    name=f"风险:{level}",
+                    marker=dict(color=color, size=5, opacity=0.5),
+                    hovertemplate=f"风险等级: {level}<br>%{{x}}<extra></extra>",
+                ))
+
+    layout = _get_base_layout("异常事件时间线", height=height, n_traces=4)
+    layout["yaxis"]["showticklabels"] = False
+    layout["yaxis"]["range"] = [-0.2, 1.5]
+    layout["yaxis"]["title"] = ""
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+# ════════════════════════════════════════════════════════════
+# 退化轨迹图
+# ════════════════════════════════════════════════════════════
+
+def render_degradation_trajectory(
+    df: pd.DataFrame,
+    col: str = "health_index",
+    window: int = 50,
+    height: int = 400,
+) -> None:
+    """退化轨迹图：滚动均值 + 置信带，按健康等级分段着色。"""
+    if col not in df.columns:
+        st.info(f"暂无 {col} 数据")
+        return
+
+    series = df[col].dropna()
+    if len(series) < window:
+        st.info(f"数据量不足（需要至少 {window} 个样本）")
+        return
+
+    x = _series_to_x(series)
+    rolling_mean = series.rolling(window=window, center=True).mean()
+    rolling_std = series.rolling(window=window, center=True).std()
+    upper = rolling_mean + 2 * rolling_std
+    lower = rolling_mean - 2 * rolling_std
+
+    fig = go.Figure()
+
+    # 置信带
+    fig.add_trace(go.Scatter(
+        x=list(x) + list(x)[::-1],
+        y=list(upper.values) + list(lower.values)[::-1],
+        fill="toself",
+        fillcolor=f"rgba({_hex_to_rgb(ACCENT_BLUE)},0.08)",
+        line=dict(width=0),
+        name="95% 置信带",
+        hoverinfo="skip",
+    ))
+
+    # 滚动均值线
+    fig.add_trace(go.Scattergl(
+        x=x, y=rolling_mean.values,
+        mode="lines",
+        name=f"滚动均值 (w={window})",
+        line=dict(color=ACCENT_BLUE, width=2.5),
+    ))
+
+    # 原始数据点（按健康等级着色）
+    level_ranges = [
+        (80, 100, HEALTH_GREEN, "健康"),
+        (60, 80, WARN_AMBER, "亚健康"),
+        (40, 60, "#FF8C00", "异常"),
+        (0, 40, RISK_RED, "严重异常"),
+    ]
+    for lo, hi, color, label in level_ranges:
+        mask = (series >= lo) & (series < hi)
+        if mask.any():
+            fig.add_trace(go.Scattergl(
+                x=[xi for xi, m in zip(x, mask) if m],
+                y=series[mask].values,
+                mode="markers",
+                name=label,
+                marker=dict(color=color, size=3, opacity=0.5),
+            ))
+
+    # 阈值线
+    for y_val, lbl, clr in [(80, "健康阈值", HEALTH_GREEN), (60, "亚健康阈值", WARN_AMBER),
+                             (40, "异常阈值", "#FF8C00")]:
+        fig.add_hline(y=y_val, line_dash="dot", line_color=clr, line_width=1,
+                      annotation_text=lbl, annotation_font_color=clr, annotation_font_size=10)
+
+    layout = _get_base_layout("健康退化轨迹", height=height, n_traces=6)
+    layout["yaxis"]["title"] = "健康指数"
+    layout["yaxis"]["range"] = [0, 105]
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})

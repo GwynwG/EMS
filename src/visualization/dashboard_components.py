@@ -16,6 +16,7 @@ from src.visualization.theme import (
     TEXT_MUTED,
     ACCENT_BLUE,
     RISK_RED,
+    HEALTH_GREEN,
     FONT_FAMILY,
     FONT_MONO,
     STATUS_COLORS,
