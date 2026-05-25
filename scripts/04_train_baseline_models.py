@@ -11,8 +11,10 @@ import pandas as pd
 
 from src.models.pca_monitor import PCAMonitor
 from src.models.isolation_forest_model import IsolationForestModel
+from src.models.pls_monitor import PLSMonitor
 from src.models.health_index import HealthIndexCalculator
 from src.models.risk_fusion import RiskFusion
+from src.models.root_cause_analyzer import RootCauseAnalyzer
 from src.models.model_registry import ModelRegistry
 from src.domain_framework.module_scoring import ModuleScorer
 from src.utils.config_loader import load_app_config, ensure_dir
@@ -71,6 +73,18 @@ def main() -> None:
     if_model.save(str(models_dir / "isolation_forest.joblib"))
     logger.info("Isolation Forest 训练完成")
 
+    # ── 训练 PLS（如启用）──
+    pls_model = PLSMonitor()
+    pls_test_pred = None
+    if pls_model.enabled:
+        logger.info("训练 PLS 模型...")
+        pls_model.fit(train_data)
+        pls_test_pred = pls_model.predict(test_data)
+        pls_model.save(str(models_dir / "pls_monitor.joblib"))
+        logger.info("PLS 训练完成")
+    else:
+        logger.info("PLS 模型已禁用，跳过")
+
     # ── 计算健康指数 ──
     hi_calc = HealthIndexCalculator()
     hi_series = hi_calc.compute_batch(
@@ -112,6 +126,21 @@ def main() -> None:
     results_df["health_index"] = hi_series.values
     results_df["risk_score"] = risk_results["risk_score"].values
     results_df["risk_level"] = risk_results["risk_level"].values
+
+    # 添加 PLS 结果（如可用）
+    if pls_test_pred is not None:
+        results_df["pls_anomaly_score"] = pls_test_pred["pls_anomaly_score"].values
+
+    # ── 根因分析 ──
+    logger.info("执行异常根因分析...")
+    rca = RootCauseAnalyzer()
+    pca_contributions = pca_model._compute_contributions(pca_model.scaler.transform(test_data))
+    if pca_contributions is not None:
+        rca_results = rca.analyze_batch(pca_contributions, list(test_data.columns), top_k=5)
+        results_df["root_cause_variable"] = rca_results["top_variable"].values
+        results_df["root_cause_module"] = rca_results["top_module_cn"].values
+        results_df["root_cause_contribution"] = rca_results["top_contribution"].values
+        logger.info(f"根因分析完成，主因模块分布: {rca_results['main_module_cn'].value_counts().to_dict()}")
 
     save_csv(results_df, processed_dir / "model_results.csv")
 

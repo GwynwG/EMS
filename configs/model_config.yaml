@@ -6,7 +6,7 @@ pca:
 pls:
   n_components: 5
   scale: true
-  enabled: false
+  enabled: true
 
 isolation_forest:
   n_estimators: 200

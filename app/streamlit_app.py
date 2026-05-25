@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import json
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -629,7 +630,6 @@ with st.sidebar:
 # 首页 - 设备状态监测与智能预警驾驶舱
 # ════════════════════════════════════════════════════════════
 def render_home_page() -> None:
-    from datetime import datetime
     from src.domain_framework.module_scoring import ModuleScorer
 
     status = get_current_status()
@@ -1424,6 +1424,82 @@ def render_online_page() -> None:
 
     st.markdown("---")
 
+    # ═══ 异常根因分析 ═══
+    st.markdown("## 异常根因分析")
+    if not df.empty and "pca_anomaly_score" in df.columns:
+        # 找到最新的异常样本
+        anomalous = df[df["pca_anomaly_score"] > 1.0]
+        if not anomalous.empty:
+            last_anom = anomalous.iloc[-1]
+            st.caption(f"最近异常样本: 索引 {anomalous.index[-1]}, PCA异常分数 {last_anom['pca_anomaly_score']:.2f}")
+
+            # 尝试加载 PCA 模型获取贡献度
+            pca_path = ROOT / "outputs" / "models" / "pca_monitor.joblib"
+            if pca_path.exists():
+                import joblib
+                from src.models.root_cause_analyzer import RootCauseAnalyzer
+
+                pca_data = joblib.load(pca_path)
+                pca_model_inst = PCAMonitor()
+                pca_model_inst.pca = pca_data["pca"]
+                pca_model_inst.scaler = pca_data["scaler"]
+                pca_model_inst.t2_threshold = pca_data["t2_threshold"]
+                pca_model_inst.spe_threshold = pca_data["spe_threshold"]
+                pca_model_inst._feature_names = pca_data.get("feature_names", [])
+                pca_model_inst._is_fitted = True
+
+                # 取异常样本的特征列
+                feature_cols = [c for c in df.columns if c not in
+                               ["pca_anomaly_score", "pca_t2", "pca_spe",
+                                "if_anomaly_score", "health_index", "risk_score",
+                                "risk_level", "pls_anomaly_score",
+                                "root_cause_variable", "root_cause_module",
+                                "root_cause_contribution"]]
+                if feature_cols:
+                    X_anom = anomalous[feature_cols].iloc[-1:]
+                    X_scaled = pca_model_inst.scaler.transform(X_anom)
+                    contributions = pca_model_inst._compute_contributions(X_scaled)
+
+                    if contributions is not None:
+                        rca = RootCauseAnalyzer()
+                        analysis = rca.analyze_sample(
+                            contributions[0], feature_cols, X_anom.iloc[0], top_k=8
+                        )
+
+                        # 根因贡献度瀑布图
+                        from src.visualization.model_details_charts import render_root_cause_waterfall, render_module_contribution_pie
+
+                        rc1, rc2 = st.columns([2, 1])
+                        with rc1:
+                            render_root_cause_waterfall(analysis)
+                        with rc2:
+                            render_module_contribution_pie(analysis["module_contributions"])
+
+                        # 根因明细表
+                        st.markdown("### 根因明细")
+                        rc_df = pd.DataFrame(analysis["root_causes"])
+                        if not rc_df.empty:
+                            display_cols = ["rank", "variable", "module_cn", "contribution", "trend"]
+                            display_cols = [c for c in display_cols if c in rc_df.columns]
+                            st.dataframe(rc_df[display_cols], width="stretch", hide_index=True)
+
+                        # 主因结论
+                        top1 = analysis["root_causes"][0] if analysis["root_causes"] else {}
+                        render_diagnosis_card(
+                            conclusion=f"异常主因: {top1.get('variable', '未知')}（{top1.get('module_cn', '')}），贡献度 {top1.get('abs_contribution', 0):.3f}",
+                            risk_source=f"主因模块: {analysis['main_module_cn']}，贡献占比 {analysis['module_contributions'].get(analysis['main_module'], 0)*100:.1f}%",
+                            suggestion=f"建议重点监测{analysis['main_module_cn']}模块的{top1.get('variable', '')}变量变化趋势。",
+                            status="warning",
+                        )
+            else:
+                st.info("PCA 模型文件未找到，无法进行根因分析。请先运行训练脚本。")
+        else:
+            st.success("当前无异常样本，所有数据均在正常范围内。")
+    else:
+        st.info("暂无异常检测数据")
+
+    st.markdown("---")
+
     # ═══ 趋势图 ═══
     st.markdown("## 实时趋势")
     if not df.empty:
@@ -1537,6 +1613,46 @@ def render_health_trend_page() -> None:
     if df.empty:
         st.warning("暂无健康趋势数据。")
         return
+
+    # ═══ 导出报告 ═══
+    status = get_current_status()
+    col_btn, col_spacer = st.columns([1, 3])
+    with col_btn:
+        if st.button("导出 PDF 诊断报告", type="primary", key="export_pdf_btn"):
+            try:
+                from src.reporting.pdf_report import generate_pdf_report
+                from src.models.root_cause_analyzer import RootCauseAnalyzer
+                import joblib as _joblib
+
+                # 准备根因数据
+                rca_result = None
+                pca_path = ROOT / "outputs" / "models" / "pca_monitor.joblib"
+                if pca_path.exists() and "pca_anomaly_score" in df.columns:
+                    anomalous = df[df["pca_anomaly_score"] > 1.0]
+                    if not anomalous.empty:
+                        pca_data = _joblib.load(pca_path)
+                        feature_cols = [c for c in df.columns if c not in
+                                       ["pca_anomaly_score", "pca_t2", "pca_spe",
+                                        "if_anomaly_score", "health_index", "risk_score",
+                                        "risk_level", "pls_anomaly_score",
+                                        "root_cause_variable", "root_cause_module",
+                                        "root_cause_contribution"]]
+                        if feature_cols:
+                            X_anom = anomalous[feature_cols].iloc[-1:]
+                            scaler = pca_data["scaler"]
+                            pca_obj = pca_data["pca"]
+                            X_scaled = scaler.transform(X_anom)
+                            T = pca_obj.transform(X_scaled)
+                            X_reconstructed = pca_obj.inverse_transform(T)
+                            contributions = X_scaled - X_reconstructed
+                            rca = RootCauseAnalyzer()
+                            rca_result = rca.analyze_sample(contributions[0], feature_cols, X_anom.iloc[0])
+
+                pdf_path = ROOT / "outputs" / "reports" / f"diagnostic_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                generate_pdf_report(df, status, pdf_path, root_cause_result=rca_result)
+                st.success(f"报告已生成: {pdf_path}")
+            except Exception as e:
+                st.error(f"报告生成失败: {e}")
 
     # ═══ 健康概览 ═══
     st.markdown("## 健康概览")

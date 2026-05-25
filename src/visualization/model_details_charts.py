@@ -319,6 +319,59 @@ def render_correlation_heatmap(df: pd.DataFrame, top_n: int = 20) -> None:
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
+def render_root_cause_waterfall(root_cause_result: dict) -> None:
+    """异常根因贡献度瀑布图 — Top-10 变量贡献。"""
+    causes = root_cause_result.get("root_causes", [])
+    if not causes:
+        st.info("暂无根因数据")
+        return
+
+    # 取前 10 个
+    causes = causes[:10]
+    labels = [f"{c['variable']} ({c['module_cn']})" for c in causes]
+    values = [c["contribution"] for c in causes]
+    colors = [RISK_RED if v > 0 else ACCENT_BLUE for v in values]
+
+    fig = go.Figure(go.Bar(
+        x=values, y=labels, orientation="h",
+        marker_color=colors, opacity=0.85,
+        text=[f"{v:.3f}" for v in values],
+        textposition="outside",
+        textfont=dict(size=11, color=TEXT_SECONDARY),
+    ))
+
+    layout = _get_base_layout("异常根因贡献度（Top-10 变量）", height=max(300, len(causes) * 35 + 80), n_traces=1)
+    layout["xaxis"]["title"] = "贡献值（正=偏高，负=偏低）"
+    layout["yaxis"]["autorange"] = "reversed"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_module_contribution_pie(module_contributions: dict[str, float]) -> None:
+    """模块异常贡献饼图。"""
+    if not module_contributions:
+        st.info("暂无模块贡献数据")
+        return
+
+    from src.visualization.dashboard_components import MODULE_SHORT_CHINESE
+
+    labels = [MODULE_SHORT_CHINESE.get(k, k) for k in module_contributions.keys()]
+    values = list(module_contributions.values())
+    colors = [ACCENT_BLUE, HEALTH_GREEN, WARN_AMBER, RISK_RED][:len(values)]
+
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values,
+        hole=0.4,
+        marker=dict(colors=colors),
+        textinfo="label+percent",
+        textfont=dict(size=12, color=TEXT_MAIN),
+    ))
+
+    layout = _get_base_layout("模块异常贡献分布", height=300, n_traces=1)
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
 def render_coupling_strength_matrix(
     module_scores: dict[str, float],
     coupling_graph=None,
