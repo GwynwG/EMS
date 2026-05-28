@@ -29,6 +29,21 @@ from src.visualization.plotly_charts import _get_base_layout, _hex_to_rgb
 # PCA 内部诊断图表
 # ════════════════════════════════════════════════════════════
 
+def _simplify_var_name(col_name: str) -> str:
+    """将特征列名简化为中文显示名。"""
+    from src.visualization.plotly_charts import simplify_feature_name, _MODULE_CN
+    # 去掉模块前缀
+    name = col_name
+    module = ""
+    for prefix in ["execution_control__", "energy_input__",
+                   "environmental_constraint__", "state_maintenance__"]:
+        if name.startswith(prefix):
+            module = prefix.rstrip("__")
+            name = name[len(prefix):]
+            break
+    return simplify_feature_name(col_name, module) if module else name
+
+
 def render_scree_plot(pca_model) -> None:
     """PCA 碎石图：各主成分方差解释比 + 累积曲线。"""
     ev = pca_model.explained_variance_ratio_
@@ -50,14 +65,14 @@ def render_scree_plot(pca_model) -> None:
     fig.add_hline(y=0.95, line_dash="dash", line_color=WARN_AMBER,
                   annotation_text="95% 保留阈值", annotation_font_color=WARN_AMBER)
 
-    layout = _get_base_layout("PCA 碎石图 — 特征值谱", height=360, n_traces=2)
+    layout = _get_base_layout("PCA 碎石图 — 特征值谱", height=420, n_traces=2)
     layout["yaxis"]["title"] = "方差解释比"
     layout["yaxis"]["range"] = [0, 1.05]
     fig.update_layout(**layout)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
-def render_loading_plot(pca_model, feature_names: list[str], top_n: int = 15) -> None:
+def render_loading_plot(pca_model, feature_names: list[str], top_n: int = 12) -> None:
     """PCA 载荷热力图：特征与主成分的关系。"""
     components = pca_model.components_
     n_pcs = min(5, components.shape[0])
@@ -68,24 +83,26 @@ def render_loading_plot(pca_model, feature_names: list[str], top_n: int = 15) ->
     selected_names = [feature_names[i] for i in top_idx]
     selected_loadings = components[:n_pcs, top_idx]
 
+    # 中文变量名
+    cn_names = [_simplify_var_name(n) for n in selected_names]
     pc_labels = [f"PC{i+1}" for i in range(n_pcs)]
 
     fig = go.Figure(data=go.Heatmap(
         z=selected_loadings,
-        x=selected_names,
+        x=cn_names,
         y=pc_labels,
         colorscale="RdBu_r",
         zmid=0,
         text=np.round(selected_loadings, 2),
         texttemplate="%{text}",
-        textfont=dict(size=10, color=TEXT_MAIN),
+        textfont=dict(size=11, color=TEXT_MAIN),
         hovertemplate="特征: %{x}<br>主成分: %{y}<br>载荷: %{z:.3f}<extra></extra>",
     ))
 
-    layout = _get_base_layout(f"PCA 载荷矩阵 — Top {top_n} 特征", height=300, n_traces=1)
-    layout["xaxis"]["tickangle"] = -45
-    layout["xaxis"]["tickfont"] = dict(size=10, color=TEXT_SECONDARY)
-    layout["yaxis"]["tickfont"] = dict(size=11, color=TEXT_SECONDARY)
+    layout = _get_base_layout(f"PCA 载荷矩阵 — Top {top_n} 特征", height=400, n_traces=1)
+    layout["xaxis"]["tickangle"] = -35
+    layout["xaxis"]["tickfont"] = dict(size=11, color=TEXT_SECONDARY)
+    layout["yaxis"]["tickfont"] = dict(size=12, color=TEXT_SECONDARY)
     fig.update_layout(**layout)
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
@@ -120,7 +137,7 @@ def render_t2_spe_scatter(
     fig.add_vline(x=threshold_spe, line_dash="dash", line_color=WARN_AMBER, line_width=1.5,
                   annotation_text=f"SPE_th={threshold_spe:.1f}", annotation_font_color=WARN_AMBER)
 
-    layout = _get_base_layout("T² vs SPE 联合监测图", height=400, n_traces=1)
+    layout = _get_base_layout("T² vs SPE 联合监测图", height=480, n_traces=1)
     layout["xaxis"]["title"] = "SPE 统计量"
     layout["yaxis"]["title"] = "T² 统计量"
     fig.update_layout(**layout)
@@ -153,7 +170,7 @@ def render_pca_2d_scatter(
         hovertemplate=f"{x_label}: %{{x:.2f}}<br>{y_label}: %{{y:.2f}}<extra></extra>",
     ))
 
-    layout = _get_base_layout("PCA 得分空间（PC1 vs PC2）", height=400, n_traces=1)
+    layout = _get_base_layout("PCA 得分空间（PC1 vs PC2）", height=480, n_traces=1)
     layout["xaxis"]["title"] = x_label
     layout["yaxis"]["title"] = y_label
     fig.update_layout(**layout)
@@ -285,22 +302,19 @@ def render_correlation_heatmap(df: pd.DataFrame, top_n: int = 20) -> None:
 
     # 选取方差最大的列
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    # 排除模型输出列
+    exclude = {"pca_anomaly_score", "pca_t2", "pca_spe", "if_anomaly_score",
+               "health_index", "risk_score", "pls_anomaly_score",
+               "root_cause_contribution"}
+    numeric_cols = [c for c in numeric_cols if c not in exclude]
     if len(numeric_cols) > top_n:
         variances = df[numeric_cols].var()
         numeric_cols = list(variances.nlargest(top_n).index)
 
     corr = df[numeric_cols].corr()
 
-    # 简化列名（去掉模块前缀）
-    short_names = []
-    for c in numeric_cols:
-        name = c
-        for prefix in ["execution_control__", "energy_input__",
-                       "environmental_constraint__", "state_maintenance__"]:
-            if name.startswith(prefix):
-                name = name[len(prefix):]
-                break
-        short_names.append(name)
+    # 中文变量名
+    short_names = [_simplify_var_name(c) for c in numeric_cols]
 
     fig = go.Figure(data=go.Heatmap(
         z=corr.values,

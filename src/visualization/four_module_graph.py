@@ -39,18 +39,18 @@ from src.visualization.theme import (
 # 所有 cy 整体下移 60px，避免遮挡外部标题
 NODE_DEFS = [
     # Layer 1: 执行控制（顶部居中）
-    {"id": "execution_control",        "label": "执行控制模块",     "desc": "设定值 / 控制指令 / 控制模式",  "cx": 600, "cy": 180, "w": 220, "h": 110, "group": "core"},
+    {"id": "execution_control",        "label": "执行控制模块",     "desc": "设定值/控制指令/联锁",   "cx": 600, "cy": 180, "w": 240, "h": 110, "group": "core"},
     # Layer 2: 作用条件（左右对称）
-    {"id": "energy_input",             "label": "能量输入模块",     "desc": "功率 / 电压 / 能量驱动",       "cx": 220, "cy": 370, "w": 210, "h": 110, "group": "core"},
-    {"id": "environmental_constraint", "label": "环境约束模块",     "desc": "冷却水 / 气压 / 环境边界",     "cx": 980, "cy": 370, "w": 210, "h": 110, "group": "core"},
+    {"id": "energy_input",             "label": "能量输入模块",     "desc": "功率/电压/能量驱动",     "cx": 220, "cy": 370, "w": 220, "h": 110, "group": "core"},
+    {"id": "environmental_constraint", "label": "环境约束模块",     "desc": "冷却水/气压/环境边界",   "cx": 980, "cy": 370, "w": 220, "h": 110, "group": "core"},
     # Layer 3: 核心状态（居中）
-    {"id": "state_maintenance",        "label": "状态维持模块",     "desc": "温度 / 压力 / 振动 / 稳定性",  "cx": 600, "cy": 560, "w": 240, "h": 120, "group": "core"},
+    {"id": "state_maintenance",        "label": "状态维持模块",     "desc": "温度/压力/振动/稳定性",  "cx": 600, "cy": 560, "w": 260, "h": 120, "group": "core"},
     # Layer 4: 残差补偿（三列）
-    {"id": "coupling_residual",        "label": "复杂耦合/残差",    "desc": "多源耦合残差处理",             "cx": 180, "cy": 750, "w": 200, "h": 100, "group": "residual"},
-    {"id": "model_residual",           "label": "模型残差",         "desc": "PCA/PLS 统计残差",             "cx": 600, "cy": 750, "w": 200, "h": 100, "group": "residual"},
-    {"id": "intelligent_model",        "label": "智能补偿模型",     "desc": "XGBoost / Autoencoder",        "cx": 1020, "cy": 750, "w": 210, "h": 100, "group": "model"},
+    {"id": "coupling_residual",        "label": "耦合残差",         "desc": "多源耦合残差处理",       "cx": 180, "cy": 750, "w": 200, "h": 100, "group": "residual"},
+    {"id": "model_residual",           "label": "模型残差",         "desc": "PCA/PLS 统计残差",       "cx": 600, "cy": 750, "w": 200, "h": 100, "group": "residual"},
+    {"id": "intelligent_model",        "label": "智能补偿模型",     "desc": "XGBoost/Autoencoder",     "cx": 1020, "cy": 750, "w": 220, "h": 100, "group": "model"},
     # Layer 5: 诊断决策（底部居中）
-    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "异常检测 / 状态判别 / 趋势预警 / 辅助研判", "cx": 600, "cy": 920, "w": 200, "h": 100, "group": "diagnosis"},
+    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "异常检测/趋势预警/研判",  "cx": 600, "cy": 920, "w": 220, "h": 100, "group": "diagnosis"},
 ]
 
 
@@ -313,21 +313,24 @@ def render_four_module_graph_svg(
         # 第1层：标题
         title_text = (
             f'<text x="{nd["cx"]}" y="{title_y}" '
-            f'font-size="22" fill="{TEXT_MAIN}" '
+            f'font-size="18" fill="{TEXT_MAIN}" '
             f'text-anchor="middle" dominant-baseline="middle" '
             f'font-weight="700" font-family="{FONT_FAMILY}" '
             f'text-rendering="optimizeLegibility">'
             f'{nd["label"]}</text>'
         )
 
-        # 第2层：说明
+        # 第2层：说明（缩短过长文本）
+        desc_str = nd["desc"]
+        if len(desc_str) > 16:
+            desc_str = desc_str[:16] + "…"
         desc_text = (
             f'<text x="{nd["cx"]}" y="{desc_y}" '
-            f'font-size="13" fill="{TEXT_DESC}" '
+            f'font-size="11" fill="{TEXT_DESC}" '
             f'text-anchor="middle" dominant-baseline="middle" '
             f'font-weight="400" font-family="{FONT_FAMILY}" '
             f'text-rendering="optimizeLegibility">'
-            f'{nd["desc"]}</text>'
+            f'{desc_str}</text>'
         )
 
         # 第3层：评分/状态值

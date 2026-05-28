@@ -362,7 +362,11 @@ def load_model_results() -> pd.DataFrame:
     """加载模型结果数据。"""
     path = ROOT / "data" / "processed" / "model_results.csv"
     if path.exists():
-        return load_csv(path, index_col=0, parse_dates=True)
+        df = load_csv(path)
+        # 如果索引不是日期，生成序列索引
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = range(len(df))
+        return df
     return pd.DataFrame()
 
 
@@ -372,7 +376,10 @@ def load_fused_features() -> pd.DataFrame:
     for name in ["fused_features_selected.csv", "fused_features.csv"]:
         path = ROOT / "data" / "processed" / name
         if path.exists():
-            return load_csv(path, index_col=0, parse_dates=True)
+            df = load_csv(path)
+            if not isinstance(df.index, pd.DatetimeIndex):
+                df.index = range(len(df))
+            return df
     return pd.DataFrame()
 
 
@@ -1448,48 +1455,54 @@ def render_online_page() -> None:
                 pca_model_inst._feature_names = pca_data.get("feature_names", [])
                 pca_model_inst._is_fitted = True
 
-                # 取异常样本的特征列
-                feature_cols = [c for c in df.columns if c not in
-                               ["pca_anomaly_score", "pca_t2", "pca_spe",
-                                "if_anomaly_score", "health_index", "risk_score",
-                                "risk_level", "pls_anomaly_score",
-                                "root_cause_variable", "root_cause_module",
-                                "root_cause_contribution"]]
-                if feature_cols:
-                    X_anom = anomalous[feature_cols].iloc[-1:]
-                    X_scaled = pca_model_inst.scaler.transform(X_anom)
-                    contributions = pca_model_inst._compute_contributions(X_scaled)
+                # 取异常样本的特征列（只用 PCA 模型训练时的特征）
+                model_feature_names = pca_data.get("feature_names", [])
+                if model_feature_names:
+                    # 只用模型认识的特征列
+                    available_cols = [c for c in model_feature_names if c in df.columns]
+                    if available_cols:
+                        X_anom = anomalous[available_cols].iloc[-1:]
+                        try:
+                            X_scaled = pca_model_inst.scaler.transform(X_anom)
+                            contributions = pca_model_inst._compute_contributions(X_scaled)
+                        except Exception as e:
+                            contributions = None
+                            st.warning(f"贡献度计算失败: {e}")
+                    else:
+                        contributions = None
+                else:
+                    contributions = None
 
-                    if contributions is not None:
-                        rca = RootCauseAnalyzer()
-                        analysis = rca.analyze_sample(
-                            contributions[0], feature_cols, X_anom.iloc[0], top_k=8
-                        )
+                if contributions is not None:
+                    rca = RootCauseAnalyzer()
+                    analysis = rca.analyze_sample(
+                        contributions[0], available_cols, X_anom.iloc[0], top_k=8
+                    )
 
-                        # 根因贡献度瀑布图
-                        from src.visualization.model_details_charts import render_root_cause_waterfall, render_module_contribution_pie
+                    # 根因贡献度瀑布图
+                    from src.visualization.model_details_charts import render_root_cause_waterfall, render_module_contribution_pie
 
-                        rc1, rc2 = st.columns([2, 1])
-                        with rc1:
-                            render_root_cause_waterfall(analysis)
-                        with rc2:
-                            render_module_contribution_pie(analysis["module_contributions"])
+                    rc1, rc2 = st.columns([2, 1])
+                    with rc1:
+                        render_root_cause_waterfall(analysis)
+                    with rc2:
+                        render_module_contribution_pie(analysis["module_contributions"])
 
-                        # 根因明细表
-                        st.markdown("### 根因明细")
-                        rc_df = pd.DataFrame(analysis["root_causes"])
-                        if not rc_df.empty:
-                            display_cols = ["rank", "variable", "module_cn", "contribution", "trend"]
-                            display_cols = [c for c in display_cols if c in rc_df.columns]
-                            st.dataframe(rc_df[display_cols], width="stretch", hide_index=True)
+                    # 根因明细表
+                    st.markdown("### 根因明细")
+                    rc_df = pd.DataFrame(analysis["root_causes"])
+                    if not rc_df.empty:
+                        display_cols = ["rank", "variable", "module_cn", "contribution", "trend"]
+                        display_cols = [c for c in display_cols if c in rc_df.columns]
+                        st.dataframe(rc_df[display_cols], width="stretch", hide_index=True)
 
-                        # 主因结论
-                        top1 = analysis["root_causes"][0] if analysis["root_causes"] else {}
-                        render_diagnosis_card(
-                            conclusion=f"异常主因: {top1.get('variable', '未知')}（{top1.get('module_cn', '')}），贡献度 {top1.get('abs_contribution', 0):.3f}",
-                            risk_source=f"主因模块: {analysis['main_module_cn']}，贡献占比 {analysis['module_contributions'].get(analysis['main_module'], 0)*100:.1f}%",
-                            suggestion=f"建议重点监测{analysis['main_module_cn']}模块的{top1.get('variable', '')}变量变化趋势。",
-                            status="warning",
+                    # 主因结论
+                    top1 = analysis["root_causes"][0] if analysis["root_causes"] else {}
+                    render_diagnosis_card(
+                        conclusion=f"异常主因: {top1.get('variable', '未知')}（{top1.get('module_cn', '')}），贡献度 {top1.get('abs_contribution', 0):.3f}",
+                        risk_source=f"主因模块: {analysis['main_module_cn']}，贡献占比 {analysis['module_contributions'].get(analysis['main_module'], 0)*100:.1f}%",
+                        suggestion=f"建议重点监测{analysis['main_module_cn']}模块的{top1.get('variable', '')}变量变化趋势。",
+                        status="warning",
                         )
             else:
                 st.info("PCA 模型文件未找到，无法进行根因分析。请先运行训练脚本。")
@@ -1968,14 +1981,14 @@ def render_algorithm_reference_page() -> None:
             if pca_model is not None:
                 st.markdown("### PCA 内部诊断")
 
-                d1, d2 = st.columns(2)
-                with d1:
-                    render_scree_plot(pca_model)
-                with d2:
-                    if feature_names:
-                        render_loading_plot(pca_model, feature_names, top_n=15)
+                # 碎石图（全宽）
+                render_scree_plot(pca_model)
 
-                # T² vs SPE 散点图
+                # 载荷热力图（全宽）
+                if feature_names:
+                    render_loading_plot(pca_model, feature_names, top_n=12)
+
+                # T² vs SPE 散点图（全宽）
                 if not df.empty and "pca_t2" in df.columns and "pca_spe" in df.columns:
                     is_anom = df["pca_anomaly_score"].values > 1.0 if "pca_anomaly_score" in df.columns else None
                     render_t2_spe_scatter(
@@ -1985,7 +1998,7 @@ def render_algorithm_reference_page() -> None:
                         is_anomaly=is_anom.astype(int) if is_anom is not None else None,
                     )
 
-                # PCA 2D 散点
+                # PCA 2D 散点（全宽）
                 if not fused_df.empty:
                     numeric_cols = fused_df.select_dtypes(include=[np.number]).columns.tolist()
                     if numeric_cols:

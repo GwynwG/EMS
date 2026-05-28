@@ -645,50 +645,51 @@ def render_anomaly_timeline(
         return
 
     fig = go.Figure()
-    x = _series_to_x(df.iloc[:, 0])
+    x = list(range(len(df)))
 
     # PCA 异常
     if "pca_anomaly_score" in df.columns:
         pca_anom = df["pca_anomaly_score"] > 1.0
         if pca_anom.any():
+            x_vals = [x[i] for i in range(len(df)) if pca_anom.iloc[i]]
             fig.add_trace(go.Scattergl(
-                x=x[pca_anom] if hasattr(x, '__getitem__') else [xi for xi, a in zip(x, pca_anom) if a],
-                y=[1] * pca_anom.sum(),
+                x=x_vals, y=[1] * len(x_vals),
                 mode="markers",
                 name="PCA 异常",
                 marker=dict(color=RISK_RED, size=8, symbol="diamond",
                             line=dict(width=1, color="#fff")),
-                hovertemplate="PCA 异常<br>%{x}<extra></extra>",
+                hovertemplate="PCA 异常<br>样本 %{x}<extra></extra>",
             ))
 
     # IF 异常
     if "if_anomaly_score" in df.columns:
         if_anom = df["if_anomaly_score"] > 0.7
         if if_anom.any():
+            x_vals = [x[i] for i in range(len(df)) if if_anom.iloc[i]]
             fig.add_trace(go.Scattergl(
-                x=x[if_anom] if hasattr(x, '__getitem__') else [xi for xi, a in zip(x, if_anom) if a],
-                y=[0.5] * if_anom.sum(),
+                x=x_vals, y=[0.5] * len(x_vals),
                 mode="markers",
                 name="IF 异常",
                 marker=dict(color=WARN_AMBER, size=7, symbol="triangle-up",
                             line=dict(width=1, color="#fff")),
-                hovertemplate="IF 异常<br>%{x}<extra></extra>",
+                hovertemplate="IF 异常<br>样本 %{x}<extra></extra>",
             ))
 
     # 风险等级变化
     if "risk_level" in df.columns:
         level_colors = {"normal": ACCENT_BLUE, "attention": WARN_AMBER,
                         "warning": WARN_AMBER, "severe": RISK_RED}
+        level_cn = {"normal": "正常", "attention": "关注", "warning": "预警", "severe": "严重"}
         for level, color in level_colors.items():
             mask = df["risk_level"] == level
             if mask.any():
+                x_vals = [x[i] for i in range(len(df)) if mask.iloc[i]]
                 fig.add_trace(go.Scattergl(
-                    x=[xi for xi, m in zip(x, mask) if m],
-                    y=[0] * mask.sum(),
+                    x=x_vals, y=[0] * len(x_vals),
                     mode="markers",
-                    name=f"风险:{level}",
+                    name=f"风险:{level_cn.get(level, level)}",
                     marker=dict(color=color, size=5, opacity=0.5),
-                    hovertemplate=f"风险等级: {level}<br>%{{x}}<extra></extra>",
+                    hovertemplate=f"风险等级: {level_cn.get(level, level)}<br>样本 %{{x}}<extra></extra>",
                 ))
 
     layout = _get_base_layout("异常事件时间线", height=height, n_traces=4)
@@ -719,7 +720,8 @@ def render_degradation_trajectory(
         st.info(f"数据量不足（需要至少 {window} 个样本）")
         return
 
-    x = _series_to_x(series)
+    # 使用位置索引作为 x 轴，避免重复值索引问题
+    x = list(range(len(series)))
     rolling_mean = series.rolling(window=window, center=True).mean()
     rolling_std = series.rolling(window=window, center=True).std()
     upper = rolling_mean + 2 * rolling_std

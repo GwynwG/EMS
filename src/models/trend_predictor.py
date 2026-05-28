@@ -64,6 +64,12 @@ class TrendPredictor:
             )
 
         # 取最近 window 个点
+        series = series.dropna()
+        if len(series) < 5:
+            return PredictionResult(
+                current_value=0, predicted_values=[], trend_direction="平稳",
+                trend_rate=0, confidence_band=[], time_to_threshold=None, risk_forecast="数据不足",
+            )
         recent = series.tail(self.window).values.astype(float)
         n = len(recent)
         x = np.arange(n)
