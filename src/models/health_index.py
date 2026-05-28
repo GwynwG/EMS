@@ -1,6 +1,6 @@
 """健康指数（Health Index）计算。
 
-输出 0-100 健康指数，数值越高代表设备状态越健康。
+输出 0-100 健康指数，数值越高代表系统状态越健康。
 """
 from __future__ import annotations
 

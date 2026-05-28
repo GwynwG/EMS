@@ -347,6 +347,124 @@ def render_root_cause_waterfall(root_cause_result: dict) -> None:
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
+def render_trend_prediction(
+    series: pd.Series,
+    predicted_values: list[float],
+    confidence_band: list[tuple[float, float]],
+    title: str = "趋势预测",
+    threshold_high: float | None = None,
+    threshold_low: float | None = None,
+) -> None:
+    """趋势预测图：历史数据 + 预测线 + 置信带。"""
+    if series.empty or not predicted_values:
+        st.info("暂无预测数据")
+        return
+
+    fig = go.Figure()
+    n_hist = len(series)
+    n_pred = len(predicted_values)
+
+    # 历史数据
+    x_hist = list(range(n_hist))
+    fig.add_trace(go.Scattergl(
+        x=x_hist, y=series.values,
+        mode="lines", name="历史数据",
+        line=dict(color=ACCENT_BLUE, width=2),
+    ))
+
+    # 预测线
+    x_pred = list(range(n_hist - 1, n_hist + n_pred))
+    y_pred = [series.iloc[-1]] + predicted_values
+    fig.add_trace(go.Scattergl(
+        x=x_pred, y=y_pred,
+        mode="lines+markers", name="预测趋势",
+        line=dict(color=WARN_AMBER, width=2, dash="dash"),
+        marker=dict(size=4),
+    ))
+
+    # 置信带
+    upper = [series.iloc[-1]] + [c[1] for c in confidence_band]
+    lower = [series.iloc[-1]] + [c[0] for c in confidence_band]
+    fig.add_trace(go.Scatter(
+        x=x_pred + x_pred[::-1],
+        y=upper + lower[::-1],
+        fill="toself", fillcolor=f"rgba({_hex_to_rgb(WARN_AMBER)},0.1)",
+        line=dict(width=0), name="95% 置信带",
+        hoverinfo="skip",
+    ))
+
+    # 阈值线
+    if threshold_high is not None:
+        fig.add_hline(y=threshold_high, line_dash="dot", line_color=RISK_RED,
+                      annotation_text=f"上限 {threshold_high}", annotation_font_color=RISK_RED)
+    if threshold_low is not None:
+        fig.add_hline(y=threshold_low, line_dash="dot", line_color=HEALTH_GREEN,
+                      annotation_text=f"下限 {threshold_low}", annotation_font_color=HEALTH_GREEN)
+
+    layout = _get_base_layout(title, height=350, n_traces=3)
+    layout["xaxis"]["title"] = "样本序号"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_model_health_gauge(psi: float, ks: float, model_name: str) -> None:
+    """模型健康度仪表盘 — 显示 PSI 和 KS 指标。"""
+    fig = go.Figure()
+
+    fig.add_trace(go.Indicator(
+        mode="gauge+number+delta",
+        value=psi,
+        title=dict(text=f"{model_name} - PSI", font=dict(size=13, color=TEXT_SECONDARY)),
+        number=dict(font=dict(size=20, color=TEXT_MAIN)),
+        gauge=dict(
+            axis=dict(range=[0, 0.5], tickfont=dict(size=10, color=TEXT_MUTED)),
+            bar=dict(color=ACCENT_BLUE, thickness=0.3),
+            bgcolor=BG_CONTENT,
+            borderwidth=1, bordercolor=BORDER_MAIN,
+            steps=[
+                {"range": [0, 0.1], "color": f"rgba({_hex_to_rgb(HEALTH_GREEN)},0.2)"},
+                {"range": [0.1, 0.25], "color": f"rgba({_hex_to_rgb(WARN_AMBER)},0.15)"},
+                {"range": [0.25, 0.5], "color": f"rgba({_hex_to_rgb(RISK_RED)},0.15)"},
+            ],
+            threshold=dict(line=dict(color=RISK_RED, width=2), thickness=0.8, value=psi),
+        ),
+        domain=dict(row=0, column=0),
+    ))
+
+    layout = _get_base_layout(f"{model_name} 模型健康度", height=250, n_traces=1)
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
+def render_comparison_bars(
+    results: list,
+) -> None:
+    """历史对比柱状图 — 两个时间段的指标对比。"""
+    if not results:
+        st.info("暂无对比数据")
+        return
+
+    metrics = [r.metric for r in results]
+    means_a = [r.period_a.mean for r in results]
+    means_b = [r.period_b.mean for r in results]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=metrics, y=means_a, name="时间段 A",
+        marker_color=ACCENT_BLUE, opacity=0.7,
+    ))
+    fig.add_trace(go.Bar(
+        x=metrics, y=means_b, name="时间段 B",
+        marker_color=RISK_RED, opacity=0.7,
+    ))
+
+    layout = _get_base_layout("历史对比 — 均值比较", height=350, n_traces=2)
+    layout["barmode"] = "group"
+    layout["yaxis"]["title"] = "均值"
+    fig.update_layout(**layout)
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+
 def render_module_contribution_pie(module_contributions: dict[str, float]) -> None:
     """模块异常贡献饼图。"""
     if not module_contributions:

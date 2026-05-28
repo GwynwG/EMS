@@ -93,7 +93,7 @@ MODEL_FORMULAS: dict[str, dict] = {
         "name_en": "Health Index",
         "category": "多源信息融合",
         "description": "将 PCA 异常分数、IF 异常分数、四模块健康评分和事件惩罚进行加权融合，"
-                      "输出 0-100 的综合健康指数。数值越高代表设备状态越健康。",
+                      "输出 0-100 的综合健康指数。数值越高代表系统状态越健康。",
         "formulas": [
             {
                 "label": "健康指数",

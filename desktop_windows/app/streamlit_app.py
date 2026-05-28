@@ -805,7 +805,7 @@ def render_alarm_page() -> None:
                     display_cols.append(c)
             st.dataframe(alarms[display_cols].tail(50), width="stretch")
         else:
-            st.success("暂无预警记录，设备状态正常。")
+            st.success("暂无预警记录，系统状态正常。")
 
 
 # ════════════════════════════════════════════════════════════

@@ -836,7 +836,7 @@ def render_home_page() -> None:
                     display_cols = [c for c in ["risk_score", "risk_level", "health_index", "pca_anomaly_score"] if c in alarm_df.columns]
                     st.dataframe(alarm_df[display_cols].tail(50), width="stretch", hide_index=True)
                 else:
-                    st.success("暂无预警记录，设备状态正常。")
+                    st.success("暂无预警记录，系统状态正常。")
             else:
                 st.info("暂无预警数据")
         else:
@@ -1580,7 +1580,7 @@ def render_alarm_page() -> None:
             )
         else:
             render_diagnosis_card(
-                conclusion="当前无预警记录，设备状态正常。",
+                conclusion="当前无预警记录，系统状态正常。",
                 status="normal",
             )
 
@@ -1595,7 +1595,52 @@ def render_alarm_page() -> None:
                     display_cols.append(c)
             st.dataframe(alarms[display_cols].tail(50), width="stretch")
         else:
-            st.success("暂无预警记录，设备状态正常。")
+            st.success("暂无预警记录，系统状态正常。")
+
+    st.markdown("---")
+
+    # ═══ 历史对比分析 ═══
+    st.markdown("## 历史对比分析")
+    st.caption("选择两个时间段，对比关键指标变化")
+    from src.analysis.historical_comparison import HistoricalComparator
+    from src.visualization.model_details_charts import render_comparison_bars
+
+    comparator = HistoricalComparator()
+    n = len(df)
+    mid = n // 2
+
+    # 默认时间段：前半段 vs 后半段（用位置索引）
+    hc1, hc2 = st.columns(2)
+    with hc1:
+        st.markdown(f"**时间段 A:** 前半段 (0 ~ {mid-1})")
+        st.markdown(f"**时间段 B:** 后半段 ({mid} ~ {n-1})")
+
+    compare_cols = [c for c in ["risk_score", "health_index", "pca_anomaly_score"] if c in df.columns]
+    if compare_cols:
+        comparisons = comparator.compare_multi_metrics(
+            df, (0, mid), (mid, n), compare_cols
+        )
+
+        with hc2:
+            render_comparison_bars(comparisons)
+
+        comp_data = []
+        for r in comparisons:
+            comp_data.append({
+                "指标": r.metric,
+                "A均值": f"{r.period_a.mean:.2f}",
+                "B均值": f"{r.period_b.mean:.2f}",
+                "变化": f"{r.mean_change:+.1f}%",
+                "退化速率": f"{r.degradation_rate:+.4f}",
+                "评估": r.severity,
+            })
+        st.dataframe(pd.DataFrame(comp_data), width="stretch", hide_index=True)
+
+        # 恶化指标警告
+        worsening = [r for r in comparisons if "恶化" in r.severity]
+        if worsening:
+            for r in worsening:
+                st.warning(r.description)
 
     st.markdown("---")
 
@@ -1682,6 +1727,77 @@ def render_health_trend_page() -> None:
             suggestion="关注健康指数下降趋势，必要时安排预防性维护。",
             status=hi_status,
         )
+
+    st.markdown("---")
+
+    # ═══ 趋势预测 ═══
+    st.markdown("## 趋势预测")
+    from src.models.trend_predictor import TrendPredictor
+
+    predictor = TrendPredictor(window=50, forecast_steps=20)
+    pred_cols = st.columns(2)
+
+    with pred_cols[0]:
+        if "risk_score" in df.columns:
+            pred = predictor.predict_trend(df["risk_score"], threshold_high=70)
+            st.metric("风险分数预测",
+                     f"{pred.predicted_values[-1]:.1f}" if pred.predicted_values else "—",
+                     delta=f"{pred.trend_rate:+.3f}/步",
+                     delta_color="inverse")
+            st.caption(f"趋势: {pred.trend_direction} | {pred.risk_forecast}")
+            if pred.time_to_threshold is not None:
+                st.warning(f"预计 {pred.time_to_threshold:.0f} 步后达到预警阈值")
+            from src.visualization.model_details_charts import render_trend_prediction
+            render_trend_prediction(df["risk_score"].tail(200), pred.predicted_values,
+                                   pred.confidence_band, "风险分数趋势预测",
+                                   threshold_high=70)
+
+    with pred_cols[1]:
+        if "health_index" in df.columns:
+            pred = predictor.predict_trend(df["health_index"], threshold_low=40)
+            st.metric("健康指数预测",
+                     f"{pred.predicted_values[-1]:.1f}" if pred.predicted_values else "—",
+                     delta=f"{pred.trend_rate:+.3f}/步")
+            st.caption(f"趋势: {pred.trend_direction} | {pred.risk_forecast}")
+            if pred.time_to_threshold is not None:
+                st.warning(f"预计 {pred.time_to_threshold:.0f} 步后降至异常阈值")
+            from src.visualization.model_details_charts import render_trend_prediction
+            render_trend_prediction(df["health_index"].tail(200), pred.predicted_values,
+                                   pred.confidence_band, "健康指数趋势预测",
+                                   threshold_low=40)
+
+    st.markdown("---")
+
+    # ═══ 模型自诊断 ═══
+    st.markdown("## 模型自诊断")
+    from src.models.model_diagnostics import ModelDiagnostics
+
+    diagnostics = ModelDiagnostics()
+    train_split = int(len(df) * 0.7)
+    train_df = df.iloc[:train_split]
+    current_df = df.iloc[train_split:]
+
+    score_cols = [c for c in ["pca_anomaly_score", "if_anomaly_score", "pca_t2", "pca_spe"]
+                 if c in df.columns]
+    if score_cols and len(train_df) > 10 and len(current_df) > 10:
+        reports = diagnostics.diagnose_all(train_df, current_df, score_cols)
+        overall = diagnostics.get_overall_health(reports)
+
+        overall_status = "normal" if overall == "模型健康" else ("warning" if overall == "需要关注" else "severe")
+        render_kpi_card("模型整体状态", overall, status=overall_status)
+
+        diag_data = []
+        for r in reports:
+            diag_data.append({
+                "模型指标": r.model_name,
+                "PSI": f"{r.psi:.4f}",
+                "KS": f"{r.ks_stat:.4f}",
+                "漂移检测": "是" if r.drift_detected else "否",
+                "状态": r.health_status,
+            })
+        st.dataframe(pd.DataFrame(diag_data), width="stretch", hide_index=True)
+    else:
+        st.info("数据量不足以进行模型诊断")
 
     st.markdown("---")
 
