@@ -48,7 +48,7 @@ NODE_DEFS = [
     {"id": "coupling_residual",        "label": "复杂耦合/残差",    "desc": "多源耦合残差处理",           "cx": 180, "cy": 710, "w": 190, "h": 100, "group": "residual"},
     {"id": "model_residual",           "label": "模型残差",         "desc": "统计模型残差",               "cx": 600, "cy": 710, "w": 190, "h": 100, "group": "residual"},
     {"id": "intelligent_model",        "label": "智能补偿模型入口", "desc": "XGBoost / Autoencoder",      "cx": 1000, "cy": 710, "w": 200, "h": 100, "group": "model"},
-    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "状态监测 / 异常预警",        "cx": 600, "cy": 870, "w": 190, "h": 100, "group": "diagnosis"},
+    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "异常检测 / 状态判别 / 趋势预警", "cx": 600, "cy": 870, "w": 190, "h": 100, "group": "diagnosis"},
 ]
 
 
@@ -354,7 +354,7 @@ def render_four_module_graph_svg(selected_id: str, module_scores: dict[str, floa
 <text x="600" y="42" font-size="26" font-weight="700" fill="{TEXT_MAIN}"
       text-anchor="middle" font-family="{FONT_FAMILY}">四模块状态监测关系图</text>
 <text x="600" y="68" font-size="13" fill="{TEXT_MUTED}"
-      text-anchor="middle" font-family="{FONT_FAMILY}">特种材料制备设备状态监测系统</text>
+      text-anchor="middle" font-family="{FONT_FAMILY}">面向生产场景的多元异构数据智能诊断系统</text>
 <!-- 第一层：连线 -->
 {edges_str}
 <!-- 第二层：标签 -->
@@ -391,7 +391,7 @@ def get_module_detail(node_id: str, module_scores: dict[str, float] | None = Non
         node_info = {
             "diagnosis_layer": {
                 "name": "诊断层",
-                "description": "状态监测、异常预警、寿命评估的综合诊断层",
+                "description": "异常检测、状态判别、趋势预警、辅助研判的综合诊断层",
                 "type": "diagnosis",
             },
             "coupling_residual": {

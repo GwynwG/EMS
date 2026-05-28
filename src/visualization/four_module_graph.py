@@ -50,7 +50,7 @@ NODE_DEFS = [
     {"id": "model_residual",           "label": "模型残差",         "desc": "PCA/PLS 统计残差",             "cx": 600, "cy": 750, "w": 200, "h": 100, "group": "residual"},
     {"id": "intelligent_model",        "label": "智能补偿模型",     "desc": "XGBoost / Autoencoder",        "cx": 1020, "cy": 750, "w": 210, "h": 100, "group": "model"},
     # Layer 5: 诊断决策（底部居中）
-    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "状态监测 / 异常预警 / 寿命评估", "cx": 600, "cy": 920, "w": 200, "h": 100, "group": "diagnosis"},
+    {"id": "diagnosis_layer",          "label": "诊断层",           "desc": "异常检测 / 状态判别 / 趋势预警 / 辅助研判", "cx": 600, "cy": 920, "w": 200, "h": 100, "group": "diagnosis"},
 ]
 
 

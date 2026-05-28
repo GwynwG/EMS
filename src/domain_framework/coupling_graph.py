@@ -56,7 +56,7 @@ class CouplingGraph:
              "description": "温度、压力、振动、稳定性指标、退化特征"},
             {"id": "diagnosis_layer", "label": "诊断层", "chinese_name": "诊断层",
              "type": "diagnosis", "group": "diagnosis",
-             "description": "状态监测、异常预警、寿命评估"},
+             "description": "异常检测、状态判别、趋势预警、辅助研判"},
             {"id": "coupling_residual", "label": "耦合残差", "chinese_name": "复杂耦合/残差",
              "type": "residual", "group": "residual",
              "description": "多源耦合残差处理"},

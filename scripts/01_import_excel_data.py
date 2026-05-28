@@ -22,7 +22,7 @@ logger = get_logger("01_import")
 
 
 def generate_demo_data(output_path: str | Path, n_rows: int = 5000) -> pd.DataFrame:
-    """生成特种材料制备设备模拟数据。"""
+    """生成面向生产场景的多元异构数据模拟数据。"""
     logger.info(f"生成 demo 数据: {n_rows} 行")
 
     np.random.seed(42)

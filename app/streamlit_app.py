@@ -1,4 +1,4 @@
-"""特种材料制备设备状态监测与智能预警系统 - Streamlit 主应用。"""
+"""面向生产场景的多元异构数据智能诊断系统 - Streamlit 主应用。"""
 from __future__ import annotations
 
 import sys
@@ -80,7 +80,7 @@ from src.visualization.theme import (
 
 # ── 页面配置 ──
 st.set_page_config(
-    page_title="设备状态监测与智能预警系统",
+    page_title="多元异构数据智能诊断系统",
     page_icon="⚙",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -610,8 +610,8 @@ with st.sidebar:
     st.markdown(f"""
     <div style="padding: 8px 0 16px 0;">
         <div style="font-size: 11px; color: #858585; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; font-family: {FONT_FAMILY};">SYSTEM</div>
-        <div style="font-size: 18px; font-weight: 600; color: #D4D4D4; font-family: {FONT_FAMILY};">设备监测系统</div>
-        <div style="font-size: 11px; color: #858585; margin-top: 2px; font-family: {FONT_MONO};">EQUIPMENT MONITORING</div>
+        <div style="font-size: 18px; font-weight: 600; color: #D4D4D4; font-family: {FONT_FAMILY};">智能诊断系统</div>
+        <div style="font-size: 11px; color: #858585; margin-top: 2px; font-family: {FONT_MONO};">MULTI-SOURCE DIAGNOSTICS</div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("---")
@@ -627,7 +627,7 @@ with st.sidebar:
 
 
 # ════════════════════════════════════════════════════════════
-# 首页 - 设备状态监测与智能预警驾驶舱
+# 首页 - 多源异构数据智能诊断驾驶舱
 # ════════════════════════════════════════════════════════════
 def render_home_page() -> None:
     from src.domain_framework.module_scoring import ModuleScorer
@@ -644,10 +644,10 @@ def render_home_page() -> None:
     <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
         <div>
             <div style="font-size: 12px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.1em; font-family: {FONT_MONO}; margin-bottom: 4px;">
-                EQUIPMENT MONITORING COCKPIT
+                MULTI-SOURCE DIAGNOSTICS COCKPIT
             </div>
             <div style="font-size: 30px; font-weight: 700; color: {TEXT_MAIN}; font-family: {FONT_FAMILY}; letter-spacing: -0.01em;">
-                特种材料制备设备状态监测与智能预警系统
+                面向生产场景的多元异构数据智能诊断系统
             </div>
         </div>
         <div style="text-align: right;">
@@ -750,7 +750,7 @@ def render_home_page() -> None:
 
     # ── Section 4: 四模块领域模型关系图 ──
     st.markdown("### 四模块状态监测关系图")
-    st.caption("特种材料制备设备状态监测系统的模块关系与诊断链路")
+    st.caption("面向生产场景的多元异构数据智能诊断系统的模块关系与诊断链路")
     sel_obj = st.session_state.selected_object
     selected_id = sel_obj.get("id", "state_maintenance")
 

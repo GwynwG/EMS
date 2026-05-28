@@ -1,8 +1,8 @@
-# DataMonitor Windows 桌面版
+# DataDiagnostics Windows 桌面版
 
 这个目录专门放 Windows 桌面封装相关代码，普通网页端仍然使用项目根目录的 `app/streamlit_app.py`、`src/`、`configs/`、`data/` 和 `outputs/`。
 
-桌面版的路径隔离由 `desktop_windows/runtime/` 完成：打包或运行桌面启动器时，配置、导入数据、模型、报告和日志会优先写入 `%LOCALAPPDATA%/DataMonitor`。直接运行项目根目录的网页端不会启用这套桌面路径逻辑。
+桌面版的路径隔离由 `desktop_windows/runtime/` 完成：打包或运行桌面启动器时，配置、导入数据、模型、报告和日志会优先写入 `%LOCALAPPDATA%/DataDiagnostics`。直接运行项目根目录的网页端不会启用这套桌面路径逻辑。
 
 ## 目录说明
 
@@ -45,10 +45,10 @@ python desktop_windows/launcher.py
 产物位于：
 
 ```text
-desktop_windows/dist/DataMonitor/DataMonitor.exe
+desktop_windows/dist/DataDiagnostics/DataDiagnostics.exe
 ```
 
-发布解压版时要保留整个 `desktop_windows/dist/DataMonitor/` 目录。
+发布解压版时要保留整个 `desktop_windows/dist/DataDiagnostics/` 目录。
 
 ## 生成安装包
 
@@ -67,7 +67,7 @@ desktop_windows/dist_installer/
 默认安装包文件名：
 
 ```text
-DataMonitor_Setup_v0.1.0.exe
+DataDiagnostics_Setup_v0.1.0.exe
 ```
 
 ## 用户运行数据
@@ -75,7 +75,7 @@ DataMonitor_Setup_v0.1.0.exe
 桌面版运行数据目录：
 
 ```text
-%LOCALAPPDATA%/DataMonitor
+%LOCALAPPDATA%/DataDiagnostics
 ```
 
 首次运行会自动创建：
@@ -102,4 +102,4 @@ DataMonitor_Setup_v0.1.0.exe
 streamlit run app/streamlit_app.py
 ```
 
-这条命令仍按项目根目录解析 `configs/`、`data/`、`outputs/`，不会主动使用 `%LOCALAPPDATA%/DataMonitor`。
+这条命令仍按项目根目录解析 `configs/`、`data/`、`outputs/`，不会主动使用 `%LOCALAPPDATA%/DataDiagnostics`。

@@ -87,7 +87,7 @@ MODULE_REGISTRY: dict[ModuleType, ModuleMeta] = {
         module_type=ModuleType.DIAGNOSIS_LAYER,
         label="Diagnosis Layer",
         chinese_name="诊断层",
-        description="状态监测、异常预警、寿命评估、健康指数计算。",
+        description="异常检测、状态判别、趋势预警、辅助研判、健康指数计算。",
         variables=[],
     ),
     ModuleType.COUPLING_RESIDUAL: ModuleMeta(

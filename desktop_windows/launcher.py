@@ -1,4 +1,4 @@
-"""Windows launcher for the DataMonitor Streamlit application."""
+"""Windows launcher for the DataDiagnostics Streamlit application."""
 from __future__ import annotations
 
 import atexit
@@ -120,7 +120,7 @@ def run_streamlit_server(app_path: str | Path, port: int) -> None:
     initialize_user_data()
     from src.utils.logger import get_logger
 
-    get_logger(__name__).info("DataMonitor Streamlit server starting on port %s", port)
+    get_logger(__name__).info("DataDiagnostics Streamlit server starting on port %s", port)
     from streamlit.web.cli import main as streamlit_main
 
     sys.argv = ["streamlit"] + build_streamlit_args(app_path, port)
@@ -155,9 +155,9 @@ def launch() -> int:
 
     from src.utils.logger import get_logger
 
-    get_logger(__name__).info("DataMonitor launcher starting: %s", url)
+    get_logger(__name__).info("DataDiagnostics launcher starting: %s", url)
 
-    print("Starting DataMonitor...")
+    print("Starting DataDiagnostics...")
     print(f"Application: {app_path}")
     print(f"Local URL: {url}")
     print("Close this window or press Ctrl+C to stop the application.")

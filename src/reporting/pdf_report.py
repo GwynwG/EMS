@@ -90,7 +90,7 @@ def generate_pdf_report(
         # ── 第 1 页：封面 + 概要 ──
         with plt.rc_context(style):
             fig, axes = plt.subplots(2, 2, figsize=(11.69, 8.27))
-            fig.suptitle("设备状态监测与智能预警 — 诊断报告", fontsize=18, fontweight="bold",
+            fig.suptitle("多元异构数据智能诊断 — 诊断报告", fontsize=18, fontweight="bold",
                         color=C_TEXT, y=0.97)
 
             # 报告信息

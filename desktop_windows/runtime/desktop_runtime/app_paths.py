@@ -1,4 +1,4 @@
-"""Runtime and bundled-resource path helpers for DataMonitor."""
+"""Runtime and bundled-resource path helpers for DataDiagnostics."""
 from __future__ import annotations
 
 import os
@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 
 
-APP_DIR_NAME = "DataMonitor"
-INSTALL_DIR_ENV = "DATAMONITOR_INSTALL_DIR"
-USER_DATA_DIR_ENV = "DATAMONITOR_USER_DATA_DIR"
-PROJECT_ROOT_ENV = "DATAMONITOR_PROJECT_ROOT"
+APP_DIR_NAME = "DataDiagnostics"
+INSTALL_DIR_ENV = "DATADIAGNOSTICS_INSTALL_DIR"
+USER_DATA_DIR_ENV = "DATADIAGNOSTICS_USER_DATA_DIR"
+PROJECT_ROOT_ENV = "DATADIAGNOSTICS_PROJECT_ROOT"
 
 _RUNTIME_TOP_LEVELS = {"configs", "data", "outputs"}
 _RUNTIME_DIRS = (

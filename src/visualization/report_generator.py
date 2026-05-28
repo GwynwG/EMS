@@ -55,7 +55,7 @@ class ReportGenerator:
         risk = report.get("risk_assessment", {})
         lines = [
             "=" * 60,
-            "特种材料制备设备状态监测报告",
+            "面向生产场景的多元异构数据智能诊断报告",
             "=" * 60,
             f"报告时间: {report.get('report_time', '')}",
             "",
