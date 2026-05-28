@@ -288,7 +288,7 @@ if "highlighted_relation_id" not in st.session_state:
 if "trend_metric_override" not in st.session_state:
     st.session_state.trend_metric_override = None
 
-PAGES = ["首页", "执行控制", "能量输入", "环境约束", "状态维持", "数据接入", "特征分析", "模型训练", "在线监测", "预警记录", "健康趋势", "算法参考"]
+PAGES = ["首页", "执行控制", "能量输入", "环境约束", "状态维持", "数据接入", "特征分析", "模型训练", "在线监测", "预警记录", "健康趋势", "算法参考", "变量字典", "参数模拟", "告警配置"]
 
 # ── 按钮组配置 ──
 PANEL_BUTTONS = [
@@ -2205,5 +2205,14 @@ elif page == "健康趋势":
     render_health_trend_page()
 elif page == "算法参考":
     render_algorithm_reference_page()
+elif page == "变量字典":
+    from app.pages.variable_browser import render_variable_browser_page
+    render_variable_browser_page()
+elif page == "参数模拟":
+    from app.pages.simulator import render_simulator_page
+    render_simulator_page()
+elif page == "告警配置":
+    from app.pages.alarm_config import render_alarm_config_page
+    render_alarm_config_page()
 else:
     render_home_page()
